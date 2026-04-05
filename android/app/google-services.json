@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "607199250947",
+    "project_id": "quizmakersharemobile",
+    "storage_bucket": "quizmakersharemobile.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:607199250947:android:dd0813d5eb2146d2ae1c36",
+        "android_client_info": {
+          "package_name": "com.quizmakersharemobile"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB6lk3SlExD2pEnvbKNO4wQWbWeeut5AcU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
