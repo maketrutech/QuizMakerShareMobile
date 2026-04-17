@@ -1,9 +1,10 @@
 import React from "react";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
-import { Icon } from '@rneui/themed';
+import { FontAwesomeFreeSolid } from "@react-native-vector-icons/fontawesome-free-solid";
 import theme from "../styles/theme";
 import HomeStackNavigator from "./HomeStackNavigator";
-import ProfileScreen from "../screens/HomeConnectedScreen/ProfileScreen";
+import ProfilStackNavigator from "./ProfilStackNavigator";
+import ThemeStackNavigator from "./ThemeStackNavigator";
 
 const Tab = createBottomTabNavigator();
 
@@ -16,17 +17,16 @@ export default function TabNavigator() {
 					let iconName = "home";
 
 					if (route.name === "HomeConnected") {
-						iconName = focused ? "home" : "home-outline";
+						iconName = focused ? "home" : "home";
 					} else if (route.name === "Profil") {
-						iconName = focused ? "person" : "person-outline";
-					} else if (route.name === "Settings") {
-						iconName = focused ? "settings" : "settings-outline";
+						iconName = focused ? "person" : "circle-user";
+					} else if (route.name === "ThemeScreen") {
+						iconName = focused ? "palette" : "palette";
 					}
 
 					return (
-						<Icon 
+						<FontAwesomeFreeSolid 
 							name={iconName}
-							type="ionicon" 
 							size={size} 
 							color={color} 
 						/>
@@ -44,8 +44,13 @@ export default function TabNavigator() {
 				options={{ headerShown: false }} 
 			/>
 			<Tab.Screen 
+				name="ThemeScreen" 
+				component={ThemeStackNavigator} 
+				options={{ headerShown: false }} 
+			/>
+			<Tab.Screen 
 				name="Profil" 
-				component={ProfileScreen} 
+				component={ProfilStackNavigator} 
 				options={{ headerShown: false }} 
 			/>
 		</Tab.Navigator>

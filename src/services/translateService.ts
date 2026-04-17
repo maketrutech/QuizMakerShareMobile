@@ -2,6 +2,7 @@ import axios from "axios";
 import { API_URL } from "../config/api";
 import log from "../utils/logService";
 import * as RNLocalize from 'react-native-localize';
+import { saveItem } from "../../src/utils/storageService";
 
 
 
@@ -13,6 +14,7 @@ export const loadTranslations = async () => {
   try {
     const deviceLanguage = RNLocalize.getLocales()[0]?.languageCode || 'en';
     log.info('deviceLanguage : ', deviceLanguage);
+    saveItem("deviceLanguage", deviceLanguage);
     const res = await axios.get(`${URI}/${deviceLanguage}`);
     translations = res.data.reduce((acc:any, item:any) => {
       acc[item.key] = item.value;

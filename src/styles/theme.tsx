@@ -10,6 +10,8 @@
 export default {
   primary: "#9b59b6",   // Bright Sky Blue
   secondary: "#ff2d95", // Gold/Yellow
+  success: "#2ecc71",
+  danger: "#e74c3c",
   white: "#FFFFFF",
   black: "#000000",
   gray: "#808080",

@@ -20,7 +20,7 @@ export default function ProfileScreen() {
 
     navigation.reset({
       index: 0,
-      routes: [{ name: "Home" }], // ✅ now TypeScript knows "Home" is valid
+      routes: [{ name: "Home" }], 
     });
   };
 
@@ -28,6 +28,9 @@ export default function ProfileScreen() {
     <View style={styles.container}>
       <TouchableOpacity style={styles.button} onPress={handleLogout}>
         <Text style={styles.buttonText}>Logout</Text>
+      </TouchableOpacity>
+      <TouchableOpacity style={styles.button}  onPress={() => navigation.navigate("CreateQuizScreen")}>
+        <Text style={styles.buttonText}>Create a quiz</Text>
       </TouchableOpacity>
     </View>
   );

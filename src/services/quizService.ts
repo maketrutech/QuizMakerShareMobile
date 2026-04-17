@@ -1,3 +1,4 @@
+
 import axios from "axios";
 import { API_URL } from "../config/api";
 import log from "../utils/logService";
@@ -19,3 +20,26 @@ export const loadQuiz = async (themeId: Number, page: Number, limit: Number, sea
     log.error("Error loading themes:", error);
   }
 };
+
+export const saveQuiz = async (quizData: Object) => {
+  try {
+    log.info(`${URI}`);
+    const res = await apiClient.post(`${URI}`, quizData);
+    return res.data;
+  } catch (error) {
+    log.error("Error loading themes:", error);
+  }
+};
+
+export const loadQuizById = async (quizId: number) => {
+  try {
+    const deviceLanguage = RNLocalize.getLocales()[0]?.languageCode || 'en';
+    const res = await apiClient.get(`${URI}/${quizId}?lang=${deviceLanguage}`);
+    return res.data;
+  } catch (error) {
+    log.error("Error loading quiz by id:", error);
+  }
+};
+
+
+

@@ -8,5 +8,15 @@ export type RootStackParamList = {
 
 export type HomeStackParamList = {
   HomeConnectedMain: undefined;
-  HomeQuizScreen: { themeId: number }; // 👈 expects a themeId param
+};
+
+export type ProfilStackParamList = {
+  ProfileScreenMain: undefined;
+  CreateQuizScreen: undefined; 
+};
+
+export type ThemeStackParamList = {
+  ThemeScreen: undefined;
+  QuizScreen: { themeId: number }; 
+  PlayQuizScreen: { quizId: number };
 };
