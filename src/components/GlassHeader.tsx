@@ -70,6 +70,11 @@ export default function GlassHeader({
                 style={styles.searchInput}
                 returnKeyType="search"
               />
+              {searchValue.trim().length > 0 ? (
+                <TouchableOpacity onPress={() => onChangeSearch("")} style={styles.clearButton}>
+                  <Text style={styles.clearButtonText}>×</Text>
+                </TouchableOpacity>
+              ) : null}
             </View>
           ) : null}
         </View>
@@ -147,5 +152,19 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 14,
     color: theme.black,
+  },
+  clearButton: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(0,0,0,0.08)",
+  },
+  clearButtonText: {
+    fontSize: 16,
+    lineHeight: 18,
+    fontWeight: "700",
+    color: theme.textMuted,
   },
 });

@@ -12,7 +12,9 @@ export type HomeStackParamList = {
 
 export type ProfilStackParamList = {
   ProfileScreenMain: undefined;
-  CreateQuizScreen: undefined; 
+  MyQuizScreen: undefined;
+  CreateQuizScreen: undefined;
+  EditQuizScreen: { quizId: number };
 };
 
 export type ThemeStackParamList = {

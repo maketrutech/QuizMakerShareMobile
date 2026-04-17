@@ -35,6 +35,10 @@ export default function ProfileScreen() {
           <Text style={styles.infoText}>{translate("profile.keep_building_text")}</Text>
         </View>
 
+        <TouchableOpacity style={styles.accentButton} onPress={() => navigation.navigate("MyQuizScreen")}>
+          <Text style={styles.accentButtonText}>{translate("profile.my_quiz")}</Text>
+        </TouchableOpacity>
+
         <TouchableOpacity style={styles.primaryButton} onPress={() => navigation.navigate("CreateQuizScreen")}>
           <Text style={styles.primaryButtonText}>{translate("profile.create_quiz")}</Text>
         </TouchableOpacity>
@@ -90,6 +94,18 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
     fontSize: 14,
     lineHeight: 20,
+  },
+  accentButton: {
+    backgroundColor: colors.danger,
+    borderRadius: 16,
+    paddingVertical: 15,
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  accentButtonText: {
+    color: colors.white,
+    fontSize: 16,
+    fontWeight: "800",
   },
   primaryButton: {
     backgroundColor: colors.primary,

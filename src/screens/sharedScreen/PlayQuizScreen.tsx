@@ -8,10 +8,11 @@ import {
   Dimensions,
   ScrollView,
   Animated,
+  Easing,
 } from "react-native";
 import theme from "../../styles/theme";
 import { useRoute, useNavigation } from "@react-navigation/native";
-import { loadQuizById } from "../../services/quizService";
+import { loadQuizById, recordQuizPlay, toggleQuizLike } from "../../services/quizService";
 import { preloadSoundEffects, releaseSoundEffects } from "../../services/soundService";
 import { SafeAreaView } from "react-native-safe-area-context";
 import GlassHeader from "../../components/GlassHeader";
@@ -38,6 +39,11 @@ interface Quiz {
   name: string;
   description: string;
   timerSeconds?: number;
+  userStats?: {
+    playCount?: number;
+    bestScore?: number;
+    isLiked?: boolean;
+  };
   questions: Question[];
 }
 
@@ -54,8 +60,12 @@ export default function PlayQuizScreen() {
   const [timer, setTimer] = useState(DEFAULT_QUIZ_TIMER);
   const [initialTimer, setInitialTimer] = useState(DEFAULT_QUIZ_TIMER);
   const [selectedCorrect, setSelectedCorrect] = useState<boolean | null>(null);
+  const [didSubmitResult, setDidSubmitResult] = useState(false);
+  const [isLiked, setIsLiked] = useState(false);
+  const [likeBusy, setLikeBusy] = useState(false);
   const timerRef = useRef<number | null>(null);
   const shakeAnim = useRef(new Animated.Value(0)).current;
+  const heartScale = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
     const fetchQuiz = async () => {
@@ -64,6 +74,7 @@ export default function PlayQuizScreen() {
       const data = await loadQuizById(quizId);
       const totalTimer = data?.timerSeconds || (data?.questions?.length ? data.questions.length * 15 : DEFAULT_QUIZ_TIMER);
       setQuiz(data);
+      setIsLiked(Boolean(data?.userStats?.isLiked));
       setInitialTimer(totalTimer);
       setTimer(totalTimer);
       setLoading(false);
@@ -99,6 +110,18 @@ export default function PlayQuizScreen() {
       releaseSoundEffects();
     };
   }, []);
+
+  useEffect(() => {
+    if (!showResult || !quiz || didSubmitResult) {
+      return;
+    }
+
+    setDidSubmitResult(true);
+    recordQuizPlay(quiz.id, {
+      score,
+      totalQuestions: quiz.questions.length,
+    });
+  }, [showResult, quiz, didSubmitResult, score]);
 
   if (loading || !quiz) {
     return <ActivityIndicator style={{ flex: 1 }} size="large" color={theme.primary} />;
@@ -141,6 +164,36 @@ export default function PlayQuizScreen() {
     }, 700);
   };
 
+  const handleToggleLike = async () => {
+    const nextValue = !isLiked;
+
+    Animated.sequence([
+      Animated.timing(heartScale, {
+        toValue: 1.25,
+        duration: 140,
+        easing: Easing.out(Easing.ease),
+        useNativeDriver: true,
+      }),
+      Animated.spring(heartScale, {
+        toValue: 1,
+        friction: 4,
+        tension: 110,
+        useNativeDriver: true,
+      }),
+    ]).start();
+
+    setIsLiked(nextValue);
+    setLikeBusy(true);
+
+    try {
+      await toggleQuizLike(quizId, nextValue);
+    } catch (error) {
+      setIsLiked(!nextValue);
+    } finally {
+      setLikeBusy(false);
+    }
+  };
+
   const handleReplayQuiz = () => {
     setCurrent(0);
     setSelected(null);
@@ -148,6 +201,7 @@ export default function PlayQuizScreen() {
     setScore(0);
     setTimer(initialTimer);
     setShowResult(false);
+    setDidSubmitResult(false);
   };
 
   const progress = `${Math.min((Math.max(timer, 0) / Math.max(initialTimer, 1)) * 100, 100)}%` as const;
@@ -179,6 +233,21 @@ export default function PlayQuizScreen() {
 
           <TouchableOpacity style={styles.resultButton} onPress={handleReplayQuiz}>
             <Text style={styles.resultButtonText}>{translate("playQuiz.replay")}</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.likeButton, isLiked && styles.likeButtonActive]}
+            onPress={handleToggleLike}
+            disabled={likeBusy}
+          >
+            <Animated.View style={{ transform: [{ scale: heartScale }] }}>
+              <Text style={[styles.likeHeart, isLiked && styles.likeHeartActive]}>
+                {isLiked ? "♥" : "♡"}
+              </Text>
+            </Animated.View>
+            <Text style={[styles.likeButtonText, isLiked && styles.likeButtonTextActive]}>
+              {translate(isLiked ? "playQuiz.unlike" : "playQuiz.like")}
+            </Text>
           </TouchableOpacity>
 
           <TouchableOpacity style={[styles.resultButton, styles.backResultButton]} onPress={() => navigation.goBack()}>
@@ -378,6 +447,38 @@ const styles = StyleSheet.create({
   },
   backResultButton: {
     backgroundColor: theme.primary,
+  },
+  likeButton: {
+    marginTop: 12,
+    backgroundColor: theme.surfaceSoft,
+    paddingVertical: 14,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    width: "100%",
+    borderWidth: 1,
+    borderColor: theme.border,
+  },
+  likeButtonActive: {
+    backgroundColor: `${theme.danger}22`,
+    borderColor: theme.danger,
+  },
+  likeHeart: {
+    color: theme.textMuted,
+    fontSize: 30,
+    fontWeight: "800",
+    marginBottom: 4,
+  },
+  likeHeartActive: {
+    color: theme.danger,
+  },
+  likeButtonText: {
+    color: theme.black,
+    fontSize: 16,
+    fontWeight: "700",
+  },
+  likeButtonTextActive: {
+    color: theme.danger,
   },
   resultButtonText: {
     color: theme.white,
