@@ -26,14 +26,35 @@ export default function TabNavigator() {
 
 					return (
 						<FontAwesomeFreeSolid 
-							name={iconName}
+							name={iconName as any}
 							size={size} 
 							color={color} 
 						/>
 					);
 				},
 				tabBarActiveTintColor: theme.primary,
-				tabBarInactiveTintColor: theme.gray,
+				tabBarInactiveTintColor: theme.textMuted,
+				tabBarLabelStyle: {
+					fontSize: 12,
+					fontWeight: "700",
+				},
+				tabBarStyle: {
+					position: "absolute",
+					left: 16,
+					right: 16,
+					bottom: 16,
+					height: 66,
+					borderTopWidth: 0,
+					borderRadius: 20,
+					paddingTop: 8,
+					paddingBottom: 8,
+					backgroundColor: "rgba(255,255,255,0.92)",
+					elevation: 8,
+					shadowColor: theme.primary,
+					shadowOffset: { width: 0, height: 8 },
+					shadowOpacity: 0.12,
+					shadowRadius: 16,
+				},
 				headerStyle: { backgroundColor: theme.primary },
 				headerTintColor: theme.secondary,
 			})}

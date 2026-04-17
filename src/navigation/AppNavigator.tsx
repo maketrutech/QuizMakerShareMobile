@@ -15,10 +15,11 @@ const Stack = createNativeStackNavigator();
 const authScreenOptions = {
   title: "",
   headerStyle: {
-    backgroundColor: theme.primary,
+    backgroundColor: theme.background,
   },
-  headerTintColor: theme.secondary,
+  headerTintColor: theme.primary,
   headerShadowVisible: false,
+  headerBackTitleVisible: false,
 };
 
 export default function AppNavigator() {

@@ -1,52 +1,51 @@
-import React, { useEffect, useState } from "react";
-import { View, FlatList, StyleSheet, ActivityIndicator, TouchableOpacity } from "react-native";
-import { useNavigation } from "@react-navigation/native";
-import log from "../utils/logService"; 
+import React from "react";
+import {
+  ActivityIndicator,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+  ViewStyle,
+} from "react-native";
+import { FlashList } from "@shopify/flash-list";
+import Animated, { FadeInDown } from "react-native-reanimated";
 import colors from "../styles/theme";
+import { translate } from "../services/translateService";
 
 type GenericListProps<T> = {
-  uri: string;                                // API endpoint
-  path: string;                               // navigation path
-  renderItemContent: (item: T) => React.ReactNode; // custom render
-  horizontal?: boolean;                       // orientation (default = false)
+  data: T[];
+  renderItemContent: (item: T, index: number) => React.ReactNode;
+  keyExtractor: (item: T, index: number) => string;
+  onItemPress?: (item: T, index: number) => void;
+  horizontal?: boolean;
+  loading?: boolean;
+  estimatedItemSize?: number;
+  emptyStateText?: string;
+  contentContainerStyle?: ViewStyle;
+  onEndReached?: () => void;
+  onEndReachedThreshold?: number;
+  ListFooterComponent?: React.ReactElement | null;
+  showsHorizontalScrollIndicator?: boolean;
+  showsVerticalScrollIndicator?: boolean;
 };
 
 export default function GenericList<T>({
-  uri,
-  path,
+  data,
   renderItemContent,
+  keyExtractor,
+  onItemPress,
   horizontal = false,
+  loading = false,
+  estimatedItemSize = 120,
+  emptyStateText = translate("common.nothing_to_display_yet"),
+  contentContainerStyle,
+  onEndReached,
+  onEndReachedThreshold = 0.3,
+  ListFooterComponent = null,
+  showsHorizontalScrollIndicator = false,
+  showsVerticalScrollIndicator = false,
 }: GenericListProps<T>) {
-  const [data, setData] = useState<T[]>([]);
-  const [loading, setLoading] = useState(true);
-  const navigation = useNavigation<any>();
-
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const res = await fetch(uri);
-        const json = await res.json();
-        setData(json);
-      } catch (err) {
-        log.error("Failed to fetch list:", err);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchData();
-  }, [uri]);
-
-  const handlePress = (item: T) => {
-    navigation.navigate(path, { item });
-  };
-
-  const renderItem = ({ item }: { item: T }) => (
-    <TouchableOpacity onPress={() => handlePress(item)} activeOpacity={0.8}>
-      {renderItemContent(item)}
-    </TouchableOpacity>
-  );
-
-  if (loading) {
+  if (loading && data.length === 0) {
     return (
       <View style={styles.loader}>
         <ActivityIndicator size="large" color={colors.primary} />
@@ -54,15 +53,47 @@ export default function GenericList<T>({
     );
   }
 
+  if (!loading && data.length === 0) {
+    return (
+      <View style={styles.emptyState}>
+        <Text style={styles.emptyTitle}>{translate("common.no_results")}</Text>
+        <Text style={styles.emptyText}>{emptyStateText}</Text>
+      </View>
+    );
+  }
+
   return (
-    <FlatList
+    <FlashList
       data={data}
-      keyExtractor={(_, index) => index.toString()}
-      renderItem={renderItem}
       horizontal={horizontal}
-      showsHorizontalScrollIndicator={false}
-      showsVerticalScrollIndicator={false}
-      contentContainerStyle={{ padding: 15, gap: 15 }}
+      estimatedItemSize={estimatedItemSize}
+      keyExtractor={keyExtractor}
+      showsHorizontalScrollIndicator={showsHorizontalScrollIndicator}
+      showsVerticalScrollIndicator={showsVerticalScrollIndicator}
+      onEndReached={onEndReached}
+      onEndReachedThreshold={onEndReachedThreshold}
+      ListFooterComponent={ListFooterComponent}
+      contentContainerStyle={contentContainerStyle}
+      renderItem={({ item, index }: { item: T; index: number }) => {
+        const content = renderItemContent(item, index);
+
+        return (
+          <Animated.View
+            entering={FadeInDown.delay(index * 45).duration(400).springify().damping(14)}
+          >
+            {onItemPress ? (
+              <TouchableOpacity
+                activeOpacity={0.88}
+                onPress={() => onItemPress(item, index)}
+              >
+                {content}
+              </TouchableOpacity>
+            ) : (
+              content
+            )}
+          </Animated.View>
+        );
+      }}
     />
   );
 }
@@ -72,5 +103,23 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
+  },
+  emptyState: {
+    flex: 1,
+    minHeight: 240,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 24,
+  },
+  emptyTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: colors.black,
+    marginBottom: 8,
+  },
+  emptyText: {
+    fontSize: 14,
+    color: colors.textMuted,
+    textAlign: "center",
   },
 });

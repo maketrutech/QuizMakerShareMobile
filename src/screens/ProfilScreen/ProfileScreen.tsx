@@ -1,64 +1,119 @@
 import React from "react";
-import { View, StyleSheet, TouchableOpacity, Alert } from "react-native";
-import { Text } from "@rneui/themed";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { View, StyleSheet, TouchableOpacity, Text } from "react-native";
 import colors from "../../styles/theme";
 import { removeItem } from "../../utils/storageService";
 import { useNavigation } from "@react-navigation/native";
-import { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import { RootStackParamList } from "../../navigation/types";
-
-type ProfileScreenNavigationProp = NativeStackNavigationProp<
-  RootStackParamList,
-  "Profile"
->;
+import GlassHeader from "../../components/GlassHeader";
+import { translate } from "../../services/translateService";
 
 export default function ProfileScreen() {
-  const navigation = useNavigation<ProfileScreenNavigationProp>();
+  const navigation = useNavigation<any>();
 
   const handleLogout = async () => {
     await removeItem("userData");
 
     navigation.reset({
       index: 0,
-      routes: [{ name: "Home" }], 
+      routes: [{ name: "Home" }],
     });
   };
 
   return (
-    <View style={styles.container}>
-      <TouchableOpacity style={styles.button} onPress={handleLogout}>
-        <Text style={styles.buttonText}>Logout</Text>
-      </TouchableOpacity>
-      <TouchableOpacity style={styles.button}  onPress={() => navigation.navigate("CreateQuizScreen")}>
-        <Text style={styles.buttonText}>Create a quiz</Text>
-      </TouchableOpacity>
-    </View>
+    <SafeAreaView style={styles.container}>
+      <View style={styles.headerArea}>
+        <GlassHeader
+          title={translate("profile.title")}
+          subtitle={translate("profile.subtitle")}
+        />
+      </View>
+
+      <View style={styles.content}>
+        <View style={styles.infoCard}>
+          <Text style={styles.infoEyebrow}>{translate("profile.your_space")}</Text>
+          <Text style={styles.infoTitle}>{translate("profile.keep_building")}</Text>
+          <Text style={styles.infoText}>{translate("profile.keep_building_text")}</Text>
+        </View>
+
+        <TouchableOpacity style={styles.primaryButton} onPress={() => navigation.navigate("CreateQuizScreen")}>
+          <Text style={styles.primaryButtonText}>{translate("profile.create_quiz")}</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.secondaryButton} onPress={handleLogout}>
+          <Text style={styles.secondaryButtonText}>{translate("profile.logout")}</Text>
+        </TouchableOpacity>
+      </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: colors.background,
+  },
+  headerArea: {
     backgroundColor: colors.primary,
-    justifyContent: "center",
-    alignItems: "center",
+    paddingBottom: 14,
+  },
+  content: {
+    flex: 1,
     padding: 20,
   },
-  button: {
-    backgroundColor: colors.secondary,
-    paddingVertical: 15,
-    paddingHorizontal: 50,
-    borderRadius: 25,
-    elevation: 5,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 5 },
-    shadowOpacity: 0.3,
-    shadowRadius: 10,
+  infoCard: {
+    backgroundColor: colors.surface,
+    borderRadius: colors.radiusCard,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: 18,
+    marginBottom: 18,
+    shadowColor: colors.primary,
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.08,
+    shadowRadius: 18,
+    elevation: 4,
   },
-  buttonText: {
+  infoEyebrow: {
+    color: colors.secondary,
+    fontSize: 12,
+    fontWeight: "700",
+    textTransform: "uppercase",
+    marginBottom: 8,
+  },
+  infoTitle: {
+    color: colors.black,
+    fontSize: 22,
+    fontWeight: "800",
+    marginBottom: 8,
+  },
+  infoText: {
+    color: colors.textMuted,
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  primaryButton: {
+    backgroundColor: colors.primary,
+    borderRadius: 16,
+    paddingVertical: 15,
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  primaryButtonText: {
     color: colors.white,
-    fontSize: 18,
-    fontWeight: "bold",
-    textAlign: "center",
+    fontSize: 16,
+    fontWeight: "800",
+  },
+  secondaryButton: {
+    backgroundColor: colors.surfaceSoft,
+    borderRadius: 16,
+    paddingVertical: 15,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  secondaryButtonText: {
+    color: colors.black,
+    fontSize: 16,
+    fontWeight: "700",
   },
 });

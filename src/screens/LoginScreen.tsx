@@ -1,15 +1,15 @@
 import React, { useState } from "react";
-import { View, KeyboardAvoidingView, Platform, ScrollView, StyleSheet } from "react-native";
-import { Input, Button, Text } from "@rneui/themed";
+import { StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import theme from "../styles/theme";
 import { emailRegex, usernameRegex, passwordRegex } from "../utils/validationRegex";
 import { login } from "../services/authService";
 import log from "../utils/logService";
-import { translate } from '../services/translateService';
+import { translate } from "../services/translateService";
 import { saveItem } from "../utils/storageService";
+import AuthShell from "../components/AuthShell";
 
 export default function LoginScreen({ navigation }: any) {
-  const [identifier, setIdentifier] = useState(""); // username OR email
+  const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [errors, setErrors] = useState({ identifier: "", password: "" });
   const [loading, setLoading] = useState(false);
@@ -19,19 +19,18 @@ export default function LoginScreen({ navigation }: any) {
     const newErrors = { identifier: "", password: "" };
 
     if (!identifier.trim()) {
-      newErrors.identifier = translate('login.error.identifier_required');
+      newErrors.identifier = translate("login.error.identifier_required");
       valid = false;
     } else if (!(emailRegex.test(identifier) || usernameRegex.test(identifier))) {
-      newErrors.identifier = translate('login.error.identifier_invalid');
+      newErrors.identifier = translate("login.error.identifier_invalid");
       valid = false;
     }
 
     if (!password) {
-      newErrors.password = translate('login.error.password_required');
+      newErrors.password = translate("login.error.password_required");
       valid = false;
     } else if (!passwordRegex.test(password)) {
-      //newErrors.password = translate('login.error.password_invalid');
-      //valid = false;
+      // Keep existing relaxed validation behavior.
     }
 
     setErrors(newErrors);
@@ -39,110 +38,119 @@ export default function LoginScreen({ navigation }: any) {
   };
 
   const handleLogin = async () => {
-    if (validate()) {
-        log.info(`register`);
-        setLoading(true);
-      try {
-        const data = await login({
-          login: identifier, // can be email OR username
-          password,
-        });
+    if (!validate()) {
+      return;
+    }
 
-        saveItem("userData", data);
-        
-        log.info("✅ Connexion réussie:", data);
-        navigation.navigate("MainApp");
-      } catch (error: any) {
-        log.error("❌ Erreur lors de la connexion:", error.response?.data || error.message);
-      } finally {
-        setLoading(false);
-      }
+    setLoading(true);
+    try {
+      const data = await login({
+        login: identifier,
+        password,
+      });
+
+      saveItem("userData", data);
+      log.info("Login success:", data);
+      navigation.navigate("MainApp");
+    } catch (error: any) {
+      log.error("Login error:", error.response?.data || error.message);
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-      keyboardVerticalOffset={Platform.OS === "ios" ? 60 : 0}
+    <AuthShell
+      title={`${translate("login.title")} 👋`}
+      subtitle={translate("login.subtitle")}
+      badge={translate("login.badge")}
     >
-      <ScrollView contentContainerStyle={styles.scrollContainer} keyboardShouldPersistTaps="handled">
-        <View style={styles.formSection}>
-          <Text h3 style={styles.title}>
-            {translate('login.title')} 👋
-          </Text>
+      <Text style={styles.label}>{translate("login.identifier_placeholder")}</Text>
+      <TextInput
+        placeholder={translate("login.identifier_placeholder")}
+        value={identifier}
+        onChangeText={setIdentifier}
+        autoCapitalize="none"
+        placeholderTextColor={theme.textMuted}
+        style={styles.input}
+      />
+      {errors.identifier ? <Text style={styles.errorText}>{errors.identifier}</Text> : null}
 
-          <Input
-            placeholder={translate('login.identifier_placeholder')}
-            value={identifier}
-            onChangeText={setIdentifier}
-            autoCapitalize="none"
-            leftIcon={{ type: "ionicon", name: "person-outline", color: theme.white }}
-            inputStyle={{ color: theme.white }}
-            placeholderTextColor={theme.placeholder}
-            errorMessage={errors.identifier}
-          />
+      <Text style={styles.label}>{translate("login.password_placeholder")}</Text>
+      <TextInput
+        placeholder={translate("login.password_placeholder")}
+        value={password}
+        onChangeText={setPassword}
+        secureTextEntry
+        placeholderTextColor={theme.textMuted}
+        style={styles.input}
+      />
+      {errors.password ? <Text style={styles.errorText}>{errors.password}</Text> : null}
 
-          <Input
-            placeholder={translate('login.password_placeholder')}
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry
-            leftIcon={{ type: "ionicon", name: "lock-closed-outline", color: theme.white }}
-            inputStyle={{ color: theme.white }}
-            placeholderTextColor={theme.placeholder}
-            errorMessage={errors.password}
-          />
+      <TouchableOpacity
+        style={[styles.primaryButton, loading && styles.buttonDisabled]}
+        onPress={handleLogin}
+        disabled={loading}
+      >
+        <Text style={styles.primaryButtonText}>
+          {loading ? `${translate("loading")}...` : translate("login.login_button")}
+        </Text>
+      </TouchableOpacity>
 
-          <Button
-            title={translate('login.login_button')}
-            buttonStyle={styles.button}
-            containerStyle={styles.buttonContainer}
-            onPress={handleLogin}
-            loading={loading}
-            disabled={loading}
-          />
-
-          <Button
-            title={translate('login.register_link')}
-            type="clear"
-            titleStyle={styles.linkButtonTitle}
-            onPress={() => navigation.navigate("Register")}
-          />
-        </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+      <TouchableOpacity style={styles.secondaryButton} onPress={() => navigation.navigate("Register")}>
+        <Text style={styles.secondaryButtonText}>{translate("login.register_link")}</Text>
+      </TouchableOpacity>
+    </AuthShell>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: theme.primary,
-  },
-  scrollContainer: {
-    padding: 20,
-  },
-  title: {
-    color: theme.white,
-    textAlign: "center",
-    marginBottom: 20,
-  },
-  formSection: {
-    marginTop: 100,
+  label: {
+    color: theme.black,
+    fontSize: 13,
+    fontWeight: "700",
+    marginBottom: 8,
+    marginTop: 8,
   },
   input: {
-    color: theme.white,
-  },
-  button: {
-    backgroundColor: theme.secondary,
+    backgroundColor: theme.surfaceSoft,
+    borderWidth: 1,
+    borderColor: theme.border,
+    borderRadius: 16,
+    paddingHorizontal: 14,
     paddingVertical: 12,
-    borderRadius: 30,
+    color: theme.black,
+    fontSize: 14,
   },
-  buttonContainer: {
-    marginTop: 20,
+  errorText: {
+    color: theme.danger,
+    fontSize: 12,
+    marginTop: 6,
+    marginBottom: 4,
   },
-  linkButtonTitle: {
+  primaryButton: {
+    marginTop: 18,
+    backgroundColor: theme.primary,
+    borderRadius: 16,
+    paddingVertical: 14,
+    alignItems: "center",
+  },
+  buttonDisabled: {
+    opacity: 0.7,
+  },
+  primaryButtonText: {
     color: theme.white,
+    fontWeight: "800",
+    fontSize: 15,
+  },
+  secondaryButton: {
+    marginTop: 12,
+    alignItems: "center",
+    paddingVertical: 10,
+  },
+  secondaryButtonText: {
+    color: theme.secondary,
+    fontWeight: "700",
+    fontSize: 14,
   },
 });

@@ -1,14 +1,24 @@
 import React from "react";
 import { View, ActivityIndicator, Text, StyleSheet } from "react-native";
-import theme from "../styles/theme"; // your color file
-import { translate } from '../services/translateService';
+import LinearGradient from "react-native-linear-gradient";
+import theme from "../styles/theme";
+import { translate } from "../services/translateService";
 
 export default function LoadingScreen() {
   return (
-    <View style={styles.container}>
-      <ActivityIndicator size="large" color={theme.secondary} />
-      <Text style={styles.text}>{translate('loading')}...</Text>
-    </View>
+    <LinearGradient
+      colors={[theme.primary, "#b6a6ff", "#ffd6ea"]}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
+      style={styles.container}
+    >
+      <View style={styles.card}>
+        <Text style={styles.badge}>{translate("common.app_name")}</Text>
+        <ActivityIndicator size="large" color={theme.secondary} />
+        <Text style={styles.text}>{translate("loading")}...</Text>
+        <Text style={styles.subtext}>{translate("loading.subtitle")}</Text>
+      </View>
+    </LinearGradient>
   );
 }
 
@@ -17,11 +27,40 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: theme.primary, // violet background
+    padding: 20,
+  },
+  card: {
+    width: "100%",
+    maxWidth: 320,
+    backgroundColor: "rgba(255,255,255,0.9)",
+    borderRadius: theme.radiusCard,
+    padding: 24,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.65)",
+    shadowColor: theme.primary,
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.18,
+    shadowRadius: 20,
+    elevation: 8,
+  },
+  badge: {
+    color: theme.primary,
+    fontSize: 12,
+    fontWeight: "800",
+    textTransform: "uppercase",
+    marginBottom: 14,
   },
   text: {
-    marginTop: 20,
+    marginTop: 16,
     fontSize: 18,
-    color: theme.white, // white text
+    fontWeight: "800",
+    color: theme.black,
+  },
+  subtext: {
+    marginTop: 8,
+    fontSize: 13,
+    color: theme.textMuted,
+    textAlign: "center",
   },
 });
