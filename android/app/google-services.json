@@ -12,7 +12,20 @@
           "package_name": "com.quizmakersharemobile"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "607199250947-50r6oglvehu7re6ddifmr0ubmap2udpb.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.quizmakersharemobile",
+            "certificate_hash": "5e8f16062ea3cd2c4a0d547876baa6f38cabf625"
+          }
+        },
+        {
+          "client_id": "607199250947-pg4rodjletclh8v980kim2e1oovbrh9a.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyB6lk3SlExD2pEnvbKNO4wQWbWeeut5AcU"
@@ -20,7 +33,12 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "607199250947-pg4rodjletclh8v980kim2e1oovbrh9a.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     }

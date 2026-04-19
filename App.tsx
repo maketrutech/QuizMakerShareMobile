@@ -3,18 +3,21 @@ import { OneSignal } from "react-native-onesignal";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import AppNavigator from "./src/navigation/AppNavigator";
 import LoadingScreen from "./src/screens/LoadingScreen";
-import { saveItem } from "./src/utils/storageService";
 import { loadTranslations } from "./src/services/translateService";
+import { configureGoogleSignIn } from "./src/services/googleAuthService";
+import { saveItem } from "./src/utils/storageService";
 
 export default function App() {
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    OneSignal.initialize("e4a045fe-0a1c-4c00-bd90-391d75da19f5");
+    OneSignal.initialize("ad0fddf5-1bdb-46dd-93c5-b8e3c0003585");
     OneSignal.Debug.setLogLevel(6);
     OneSignal.Notifications.requestPermission(true);
 
     const bootstrapApp = async () => {
+      configureGoogleSignIn();
+
       const currentToken = await OneSignal.User.pushSubscription.getTokenAsync();
       if (currentToken) {
         console.log("Current User Push Token:", currentToken);

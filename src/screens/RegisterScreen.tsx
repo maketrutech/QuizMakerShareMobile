@@ -1,12 +1,18 @@
-import React, { useState, useEffect } from "react";
-import { StyleSheet, Text, TextInput, TouchableOpacity } from "react-native";
-import theme from "../styles/theme";
-import { usernameRegex, emailRegex, passwordRegex } from "../utils/validationRegex";
-import { register } from "../services/authService";
-import { getItem } from "../utils/storageService";
-import log from "../utils/logService";
-import { translate } from "../services/translateService";
+import React, { useEffect, useState } from "react";
+import { Alert, StyleSheet, Text, TextInput, TouchableOpacity } from "react-native";
 import AuthShell from "../components/AuthShell";
+import { register } from "../services/authService";
+import { isGoogleCancelled, signInWithGoogle } from "../services/googleAuthService";
+import { translate } from "../services/translateService";
+import theme from "../styles/theme";
+import log from "../utils/logService";
+import { getItem, saveItem } from "../utils/storageService";
+import { emailRegex, passwordRegex, usernameRegex } from "../utils/validationRegex";
+
+const t = (key: string, fallback: string) => {
+  const value = translate(key);
+  return value === key ? fallback : value;
+};
 
 export default function RegisterScreen({ navigation }: any) {
   const [username, setUsername] = useState("");
@@ -14,6 +20,7 @@ export default function RegisterScreen({ navigation }: any) {
   const [password, setPassword] = useState("");
   const [errors, setErrors] = useState({ username: "", email: "", password: "" });
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
   const [pushToken, setPushToken] = useState<string | null>(null);
 
   useEffect(() => {
@@ -78,6 +85,28 @@ export default function RegisterScreen({ navigation }: any) {
     }
   };
 
+  const handleGoogleRegister = async () => {
+    setGoogleLoading(true);
+
+    try {
+      const data = await signInWithGoogle(pushToken);
+      await saveItem("userData", data);
+      log.info("Google register/login success:", data);
+      navigation.navigate("MainApp");
+    } catch (error: any) {
+      if (isGoogleCancelled(error)) {
+        log.info("Google sign-in cancelled by user");
+        return;
+      }
+
+      const message = error?.response?.data?.error || error?.message || t("auth.google_error", "Unable to sign in with Google.");
+      log.error("Google register error:", error.response?.data || error.message);
+      Alert.alert(t("auth.google_title", "Google sign-in"), message);
+    } finally {
+      setGoogleLoading(false);
+    }
+  };
+
   return (
     <AuthShell
       title={`${translate("register.title")} ✨`}
@@ -118,12 +147,22 @@ export default function RegisterScreen({ navigation }: any) {
       {errors.password ? <Text style={styles.errorText}>{errors.password}</Text> : null}
 
       <TouchableOpacity
-        style={[styles.primaryButton, loading && styles.buttonDisabled]}
+        style={[styles.primaryButton, (loading || googleLoading) && styles.buttonDisabled]}
         onPress={handleRegister}
-        disabled={loading}
+        disabled={loading || googleLoading}
       >
         <Text style={styles.primaryButtonText}>
           {loading ? `${translate("register.creating")}...` : translate("register.signup_button")}
+        </Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        style={[styles.googleButton, (loading || googleLoading) && styles.buttonDisabled]}
+        onPress={handleGoogleRegister}
+        disabled={loading || googleLoading}
+      >
+        <Text style={styles.googleButtonText}>
+          {googleLoading ? `${translate("loading")}...` : `🌐 ${t("auth.google_button", "Continue with Google")}`}
         </Text>
       </TouchableOpacity>
 
@@ -165,11 +204,25 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     alignItems: "center",
   },
+  googleButton: {
+    marginTop: 12,
+    backgroundColor: theme.white,
+    borderColor: theme.border,
+    borderWidth: 1,
+    borderRadius: 16,
+    paddingVertical: 14,
+    alignItems: "center",
+  },
   buttonDisabled: {
     opacity: 0.7,
   },
   primaryButtonText: {
     color: theme.white,
+    fontWeight: "800",
+    fontSize: 15,
+  },
+  googleButtonText: {
+    color: theme.black,
     fontWeight: "800",
     fontSize: 15,
   },

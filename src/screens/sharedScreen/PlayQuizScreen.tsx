@@ -86,6 +86,9 @@ export default function PlayQuizScreen() {
   const [hasMoreBelow, setHasMoreBelow] = useState(false);
   const [currentUserRank, setCurrentUserRank] = useState<number | null>(null);
   const timerRef = useRef<number | null>(null);
+  const leaderboardScrollRef = useRef<ScrollView | null>(null);
+  const leaderboardViewportHeight = useRef(0);
+  const hasAutoFocusedCurrentUser = useRef(false);
   const shakeAnim = useRef(new Animated.Value(0)).current;
   const heartScale = useRef(new Animated.Value(1)).current;
 
@@ -104,6 +107,11 @@ export default function PlayQuizScreen() {
     setCurrentUserRank(payload?.currentUserRank ?? null);
     setHasMoreAbove(Boolean(payload?.hasMoreAbove));
     setHasMoreBelow(Boolean(payload?.hasMoreBelow));
+
+    if (mode === "around" && !nextItems.some((item) => item.isCurrentUser)) {
+      hasAutoFocusedCurrentUser.current = true;
+    }
+
     setLeaderboard((prev) => (mode === "around" ? nextItems : mergeLeaderboardEntries(prev, nextItems)));
   };
 
@@ -148,7 +156,28 @@ export default function PlayQuizScreen() {
     }
   };
 
+  const focusCurrentUserRow = (rowY: number, rowHeight: number) => {
+    if (hasAutoFocusedCurrentUser.current) {
+      return;
+    }
+
+    requestAnimationFrame(() => {
+      const viewportHeight = leaderboardViewportHeight.current || 260;
+      const centeredOffset = rowY - viewportHeight / 2 + rowHeight / 2;
+
+      leaderboardScrollRef.current?.scrollTo({
+        y: Math.max(centeredOffset, 0),
+        animated: true,
+      });
+      hasAutoFocusedCurrentUser.current = true;
+    });
+  };
+
   const handleLeaderboardScroll = ({ nativeEvent }: any) => {
+    if (!hasAutoFocusedCurrentUser.current) {
+      return;
+    }
+
     const { layoutMeasurement, contentOffset, contentSize } = nativeEvent;
 
     if (contentOffset.y <= 12) {
@@ -230,6 +259,8 @@ export default function PlayQuizScreen() {
       setLeaderboardLoading(false);
       setLeaderboardTopLoading(false);
       setLeaderboardMoreLoading(false);
+      leaderboardViewportHeight.current = 0;
+      hasAutoFocusedCurrentUser.current = false;
     }
   }, [showResult]);
 
@@ -322,6 +353,11 @@ export default function PlayQuizScreen() {
     <View
       key={`${item.rank}-${item.userId}`}
       style={[styles.leaderboardRow, item.isCurrentUser && styles.currentUserRow]}
+      onLayout={(event) => {
+        if (item.isCurrentUser) {
+          focusCurrentUserRow(event.nativeEvent.layout.y, event.nativeEvent.layout.height);
+        }
+      }}
     >
       <View style={[styles.rankBadge, item.rank <= 3 && styles.topRankBadge]}>
         <Text style={styles.rankText}>{item.rank}</Text>
@@ -377,11 +413,42 @@ export default function PlayQuizScreen() {
             <Text style={styles.resultTitle}>{translate("playQuiz.finished")}</Text>
             <Text style={styles.resultScore}>{translate("playQuiz.score")}: {score}/{quiz.questions.length}</Text>
 
-            
+            <View style={styles.leaderboardCard}>
+              <View style={styles.leaderboardHeader}>
+                <Text style={styles.leaderboardTitle}>{translate("playQuiz.leaderboard")}</Text>
+                {currentUserRank ? (
+                  <Text style={styles.leaderboardPosition}>{translate("playQuiz.position")} #{currentUserRank}</Text>
+                ) : null}
+              </View>
 
-            <TouchableOpacity style={styles.resultButton} onPress={handleReplayQuiz}>
-              <Text style={styles.resultButtonText}>{translate("playQuiz.replay")}</Text>
-            </TouchableOpacity>
+              {leaderboardLoading ? (
+                <View style={styles.leaderboardEmptyState}>
+                  <ActivityIndicator size="small" color={theme.primary} />
+                  <Text style={styles.leaderboardHelperText}>{translate("playQuiz.loading_leaderboard")}</Text>
+                </View>
+              ) : leaderboard.length > 0 ? (
+                <ScrollView
+                  ref={leaderboardScrollRef}
+                  style={styles.leaderboardList}
+                  nestedScrollEnabled
+                  showsVerticalScrollIndicator={false}
+                  onLayout={(event) => {
+                    leaderboardViewportHeight.current = event.nativeEvent.layout.height;
+                  }}
+                  onScroll={handleLeaderboardScroll}
+                  scrollEventThrottle={16}
+                >
+                  {leaderboardTopLoading ? <ActivityIndicator size="small" color={theme.primary} style={styles.leaderboardLoader} /> : null}
+                  {leaderboard.map((item) => renderLeaderboardRow(item))}
+                  {leaderboardMoreLoading ? <ActivityIndicator size="small" color={theme.primary} style={styles.leaderboardLoader} /> : null}
+                </ScrollView>
+              ) : (
+                <View style={styles.leaderboardEmptyState}>
+                  <Text style={styles.leaderboardHelperText}>{translate("playQuiz.no_players_yet")}</Text>
+                </View>
+              )}
+            </View>
+            
 
             <TouchableOpacity
               style={[styles.likeButton, isLiked && styles.likeButtonActive]}
@@ -398,37 +465,12 @@ export default function PlayQuizScreen() {
               </Text>
             </TouchableOpacity>
 
-            <View style={styles.leaderboardCard}>
-              <View style={styles.leaderboardHeader}>
-                <Text style={styles.leaderboardTitle}>{translate("playQuiz.leaderboard")}</Text>
-                {currentUserRank ? (
-                  <Text style={styles.leaderboardPosition}>{translate("playQuiz.position")} #{currentUserRank}</Text>
-                ) : null}
-              </View>
 
-              {leaderboardLoading ? (
-                <View style={styles.leaderboardEmptyState}>
-                  <ActivityIndicator size="small" color={theme.primary} />
-                  <Text style={styles.leaderboardHelperText}>{translate("playQuiz.loading_leaderboard")}</Text>
-                </View>
-              ) : leaderboard.length > 0 ? (
-                <ScrollView
-                  style={styles.leaderboardList}
-                  nestedScrollEnabled
-                  showsVerticalScrollIndicator={false}
-                  onScroll={handleLeaderboardScroll}
-                  scrollEventThrottle={16}
-                >
-                  {leaderboardTopLoading ? <ActivityIndicator size="small" color={theme.primary} style={styles.leaderboardLoader} /> : null}
-                  {leaderboard.map((item) => renderLeaderboardRow(item))}
-                  {leaderboardMoreLoading ? <ActivityIndicator size="small" color={theme.primary} style={styles.leaderboardLoader} /> : null}
-                </ScrollView>
-              ) : (
-                <View style={styles.leaderboardEmptyState}>
-                  <Text style={styles.leaderboardHelperText}>{translate("playQuiz.no_players_yet")}</Text>
-                </View>
-              )}
-            </View>
+            <TouchableOpacity style={styles.resultButton} onPress={handleReplayQuiz}>
+              <Text style={styles.resultButtonText}>{translate("playQuiz.replay")}</Text>
+            </TouchableOpacity>
+
+          
 
             <TouchableOpacity style={[styles.resultButton, styles.backResultButton]} onPress={() => navigation.goBack()}>
               <Text style={styles.resultButtonText}>{translate("common.back")}</Text>
@@ -626,9 +668,9 @@ const styles = StyleSheet.create({
   },
   leaderboardCard: {
     width: "100%",
-    marginTop: 8,
-    marginBottom: 4,
-    padding: 14,
+    marginTop: 6,
+    marginBottom: 2,
+    padding: 12,
     borderRadius: 18,
     borderWidth: 1,
     borderColor: theme.border,
@@ -638,7 +680,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: 10,
+    marginBottom: 8,
     gap: 8,
   },
   leaderboardTitle: {
@@ -656,7 +698,7 @@ const styles = StyleSheet.create({
     borderRadius: 999,
   },
   leaderboardList: {
-    maxHeight: 260,
+    maxHeight: 200,
     width: "100%",
   },
   leaderboardEmptyState: {
@@ -676,11 +718,11 @@ const styles = StyleSheet.create({
   leaderboardRow: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 10,
-    paddingVertical: 10,
+    paddingHorizontal: 8,
+    paddingVertical: 8,
     borderRadius: 14,
     backgroundColor: theme.surfaceSoft,
-    marginBottom: 8,
+    marginBottom: 6,
   },
   currentUserRow: {
     borderWidth: 1,
