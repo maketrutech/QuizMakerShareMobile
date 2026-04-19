@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useCallback, useState } from "react";
 import {
   Platform,
   StyleSheet,
@@ -9,8 +9,10 @@ import {
 } from "react-native";
 import { BlurView } from "@react-native-community/blur";
 import { FontAwesomeFreeSolid } from "@react-native-vector-icons/fontawesome-free-solid";
+import { useFocusEffect } from "@react-navigation/native";
 import theme from "../styles/theme";
 import { translate } from "../services/translateService";
+import { getItem } from "../utils/storageService";
 
 type GlassHeaderProps = {
   title: string;
@@ -20,6 +22,7 @@ type GlassHeaderProps = {
   onSubmitSearch?: () => void;
   placeholder?: string;
   onBackPress?: () => void;
+  points?: number | null;
 };
 
 export default function GlassHeader({
@@ -30,7 +33,33 @@ export default function GlassHeader({
   onSubmitSearch,
   placeholder = translate("home.search"),
   onBackPress,
+  points,
 }: GlassHeaderProps) {
+  const [storedPoints, setStoredPoints] = useState<number | null>(null);
+
+  useFocusEffect(
+    useCallback(() => {
+      let isActive = true;
+
+      const loadUserPoints = async () => {
+        const userData: any = await getItem("userData");
+
+        if (isActive) {
+          const nextPoints = userData?.user ? Number(userData.user.points ?? 0) : null;
+          setStoredPoints(nextPoints);
+        }
+      };
+
+      loadUserPoints();
+
+      return () => {
+        isActive = false;
+      };
+    }, [])
+  );
+
+  const displayPoints = typeof points === "number" ? points : storedPoints;
+
   return (
     <View style={styles.wrapper}>
       <View style={styles.glassCard}>
@@ -57,6 +86,13 @@ export default function GlassHeader({
                 <Text style={styles.pillText}>{translate("common.pastel_ui")}</Text>
               </View>
             )}
+
+            {displayPoints !== null ? (
+              <View style={styles.pointsBadge}>
+                <Text style={styles.pointsEmoji}>✨</Text>
+                <Text style={styles.pointsText}>{displayPoints} {translate("points.unit")}</Text>
+              </View>
+            ) : null}
           </View>
 
           <Text style={styles.title}>{title}</Text>
@@ -135,6 +171,25 @@ const styles = StyleSheet.create({
     color: theme.primary,
     fontWeight: "700",
     fontSize: 12,
+  },
+  pointsBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 999,
+    backgroundColor: "rgba(255,141,183,0.18)",
+    borderWidth: 1,
+    borderColor: "rgba(143,124,255,0.18)",
+  },
+  pointsEmoji: {
+    fontSize: 13,
+  },
+  pointsText: {
+    color: theme.black,
+    fontSize: 12,
+    fontWeight: "800",
   },
   title: {
     fontSize: 24,

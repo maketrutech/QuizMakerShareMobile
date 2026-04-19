@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   ScrollView,
   StyleSheet,
   Text,
@@ -13,8 +12,9 @@ import theme from "../../styles/theme";
 import { loadQuizById, saveQuiz, updateQuiz } from "../../services/quizService";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { loadThemes } from "../../services/themeService";
-import { getItem } from "../../../src/utils/storageService";
+import { getItem, saveItem } from "../../../src/utils/storageService";
 import GlassHeader from "../../components/GlassHeader";
+import AppDialog from "../../components/AppDialog";
 import { translate } from "../../services/translateService";
 
 type ThemeItem = {
@@ -28,6 +28,14 @@ type EditableQuestion = {
   options: string[];
   correctAnswer: string;
   translations: string[];
+};
+
+type DialogState = {
+  visible: boolean;
+  title: string;
+  message: string;
+  tone: "success" | "error";
+  onClose: (() => void) | null;
 };
 
 const EMPTY_ANSWERS = ["", "", "", ""];
@@ -56,6 +64,44 @@ export default function CreateQuizScreen({ navigation, route }: any) {
   const [deviceLanguage, setDeviceLanguage] = useState("fr");
   const [editingQuestionIndex, setEditingQuestionIndex] = useState<number | null>(null);
   const [screenLoading, setScreenLoading] = useState(false);
+  const [dialog, setDialog] = useState<DialogState>({
+    visible: false,
+    title: "",
+    message: "",
+    tone: "error",
+    onClose: null,
+  });
+
+  const showDialog = (
+    title: string,
+    message: string,
+    tone: "success" | "error" = "error",
+    onClose: (() => void) | null = null
+  ) => {
+    setDialog({
+      visible: true,
+      title,
+      message,
+      tone,
+      onClose,
+    });
+  };
+
+  const handleCloseDialog = () => {
+    const nextAction = dialog.onClose;
+
+    setDialog((prev) => ({
+      ...prev,
+      visible: false,
+      onClose: null,
+    }));
+
+    if (nextAction) {
+      nextAction();
+    }
+  };
+
+  const okLabel = translate("common.ok") === "common.ok" ? "OK" : translate("common.ok");
 
   const resetQuestionForm = () => {
     setQuestionText("");
@@ -106,12 +152,13 @@ export default function CreateQuizScreen({ navigation, route }: any) {
           setAllQuestions([]);
           resetQuestionForm();
         }
-      } catch (error) {
-        Alert.alert(translate("common.error"), translate("createQuiz.error.save_failed"));
-
-        if (isEditMode) {
-          navigation.goBack();
-        }
+      } catch {
+        showDialog(
+          translate("common.error"),
+          translate("createQuiz.error.save_failed"),
+          "error",
+          isEditMode ? () => navigation.goBack() : null
+        );
       } finally {
         setScreenLoading(false);
       }
@@ -176,7 +223,7 @@ export default function CreateQuizScreen({ navigation, route }: any) {
     const nextQuestion = buildCurrentQuestion();
 
     if (!nextQuestion) {
-      Alert.alert(translate("common.error"), translate("createQuiz.error.fill_question"));
+      showDialog(translate("common.error"), translate("createQuiz.error.fill_question"));
       return;
     }
 
@@ -187,23 +234,23 @@ export default function CreateQuizScreen({ navigation, route }: any) {
     }
 
     resetQuestionForm();
-    Alert.alert(translate("common.success"), translate("createQuiz.success.question_added"));
+    showDialog(translate("common.success"), translate("createQuiz.success.question_added"), "success");
   };
 
   const handleFinalSave = async () => {
     if (!quizTitle.trim()) {
-      Alert.alert(translate("common.error"), translate("createQuiz.error.title_required"));
+      showDialog(translate("common.error"), translate("createQuiz.error.title_required"));
       return;
     }
 
     if (!selectedThemeId) {
-      Alert.alert(translate("common.error"), translate("createQuiz.error.theme_required"));
+      showDialog(translate("common.error"), translate("createQuiz.error.theme_required"));
       return;
     }
 
     const pendingQuestion = buildCurrentQuestion();
     if (pendingQuestion === false) {
-      Alert.alert(translate("common.error"), translate("createQuiz.error.fill_question"));
+      showDialog(translate("common.error"), translate("createQuiz.error.fill_question"));
       return;
     }
 
@@ -214,7 +261,7 @@ export default function CreateQuizScreen({ navigation, route }: any) {
       : allQuestions;
 
     if (questionsToSave.length === 0) {
-      Alert.alert(translate("common.error"), translate("createQuiz.error.questions_required"));
+      showDialog(translate("common.error"), translate("createQuiz.error.questions_required"));
       return;
     }
 
@@ -239,13 +286,36 @@ export default function CreateQuizScreen({ navigation, route }: any) {
         : await saveQuiz(finalData);
 
       if (res?.message) {
-        Alert.alert(translate("common.success"), translate("createQuiz.success.saved"));
-        navigation.goBack();
+        if (!isEditMode && typeof res?.remainingPoints === "number") {
+          const storedUserData: any = await getItem("userData");
+
+          if (storedUserData?.user) {
+            await saveItem("userData", {
+              ...storedUserData,
+              user: {
+                ...storedUserData.user,
+                points: res.remainingPoints,
+              },
+            });
+          }
+        }
+
+        const successMessage =
+          !isEditMode && typeof res?.remainingPoints === "number"
+            ? `${translate("createQuiz.success.saved")}\n${translate("points.remaining")}: ${res.remainingPoints} ${translate("points.unit")}`
+            : translate("createQuiz.success.saved");
+
+        showDialog(translate("common.success"), successMessage, "success", () => navigation.goBack());
       } else {
-        Alert.alert(translate("common.error"), translate("createQuiz.error.save_failed"));
+        const errorMessage =
+          typeof res?.error === "string" && res.error.includes("at least 30 points")
+            ? translate("points.not_enough")
+            : res?.error || translate("createQuiz.error.save_failed");
+
+        showDialog(translate("common.error"), errorMessage);
       }
-    } catch (error) {
-      Alert.alert(translate("common.error"), translate("createQuiz.error.save_failed"));
+    } catch {
+      showDialog(translate("common.error"), translate("createQuiz.error.save_failed"));
     }
   };
 
@@ -278,6 +348,7 @@ export default function CreateQuizScreen({ navigation, route }: any) {
               onChangeText={setQuizTitle}
             />
             <Text style={styles.countText}>{translate("createQuiz.questions_added")}: {allQuestions.length}</Text>
+            <Text style={styles.pointsHint}>{translate("points.creation_cost")}</Text>
           </View>
 
           <View style={styles.formCard}>
@@ -381,6 +452,23 @@ export default function CreateQuizScreen({ navigation, route }: any) {
           </View>
         </ScrollView>
       )}
+
+      <AppDialog
+        visible={dialog.visible}
+        title={dialog.title}
+        subtitle={dialog.message}
+        onClose={handleCloseDialog}
+      >
+        <TouchableOpacity
+          style={[
+            styles.dialogButton,
+            dialog.tone === "success" ? styles.dialogButtonSuccess : styles.dialogButtonError,
+          ]}
+          onPress={handleCloseDialog}
+        >
+          <Text style={styles.dialogButtonText}>{okLabel}</Text>
+        </TouchableOpacity>
+      </AppDialog>
     </SafeAreaView>
   );
 }
@@ -432,6 +520,12 @@ const styles = StyleSheet.create({
     color: theme.textMuted,
     marginTop: 10,
     fontWeight: "600",
+  },
+  pointsHint: {
+    marginTop: 8,
+    color: theme.primary,
+    fontSize: 12,
+    fontWeight: "700",
   },
   formCard: {
     backgroundColor: theme.surface,
@@ -597,6 +691,23 @@ const styles = StyleSheet.create({
   deleteQuestionButtonText: {
     color: theme.danger,
     fontSize: 22,
+    fontWeight: "800",
+  },
+  dialogButton: {
+    marginTop: 8,
+    borderRadius: 16,
+    paddingVertical: 14,
+    alignItems: "center",
+  },
+  dialogButtonSuccess: {
+    backgroundColor: theme.primary,
+  },
+  dialogButtonError: {
+    backgroundColor: theme.danger,
+  },
+  dialogButtonText: {
+    color: theme.white,
+    fontSize: 15,
     fontWeight: "800",
   },
 });

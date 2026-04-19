@@ -1,4 +1,3 @@
-import axios from "axios";
 import { API_URL } from "../config/api";
 import log from "../utils/logService";
 import { saveItem } from "../utils/storageService";
@@ -10,9 +9,9 @@ const URI = `${API_URL}/check-token`;
 export const checkToken = async () => {
   try {
     log.info(`${URI}`);
-    const res = await apiClient.get(URI);
+    await apiClient.get(URI);
     return true;
-  } catch (error) {
+  } catch {
     saveItem("userData", null);
     return false;
   }

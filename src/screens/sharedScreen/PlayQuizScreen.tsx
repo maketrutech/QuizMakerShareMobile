@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useCallback, useEffect, useState, useRef } from "react";
 import {
   View,
   Text,
@@ -19,6 +19,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import GlassHeader from "../../components/GlassHeader";
 import { translate } from "../../services/translateService";
 import { getAvatarSource } from "../../utils/avatarOptions";
+import { getItem, saveItem } from "../../utils/storageService";
 
 const DEFAULT_QUIZ_TIMER = 60;
 const BONUS_TIME = 5;
@@ -72,6 +73,8 @@ export default function PlayQuizScreen() {
   const [selected, setSelected] = useState<number | null>(null);
   const [showResult, setShowResult] = useState(false);
   const [score, setScore] = useState(0);
+  const [currentPoints, setCurrentPoints] = useState<number | null>(null);
+  const [pointsEarned, setPointsEarned] = useState(0);
   const [timer, setTimer] = useState(DEFAULT_QUIZ_TIMER);
   const [initialTimer, setInitialTimer] = useState(DEFAULT_QUIZ_TIMER);
   const [selectedCorrect, setSelectedCorrect] = useState<boolean | null>(null);
@@ -92,16 +95,16 @@ export default function PlayQuizScreen() {
   const shakeAnim = useRef(new Animated.Value(0)).current;
   const heartScale = useRef(new Animated.Value(1)).current;
 
-  const mergeLeaderboardEntries = (currentEntries: LeaderboardEntry[], nextEntries: LeaderboardEntry[]) => {
+  const mergeLeaderboardEntries = useCallback((currentEntries: LeaderboardEntry[], nextEntries: LeaderboardEntry[]) => {
     const byRank = new Map<number, LeaderboardEntry>();
     [...currentEntries, ...nextEntries].forEach((item) => {
       byRank.set(item.rank, item);
     });
 
     return Array.from(byRank.values()).sort((a, b) => a.rank - b.rank);
-  };
+  }, []);
 
-  const applyLeaderboardResponse = (payload: any, mode: "around" | "top" | "after") => {
+  const applyLeaderboardResponse = useCallback((payload: any, mode: "around" | "top" | "after") => {
     const nextItems: LeaderboardEntry[] = Array.isArray(payload?.data) ? payload.data : [];
 
     setCurrentUserRank(payload?.currentUserRank ?? null);
@@ -113,9 +116,9 @@ export default function PlayQuizScreen() {
     }
 
     setLeaderboard((prev) => (mode === "around" ? nextItems : mergeLeaderboardEntries(prev, nextItems)));
-  };
+  }, [mergeLeaderboardEntries]);
 
-  const fetchLeaderboard = async (mode: "around" | "top" | "after" = "around") => {
+  const fetchLeaderboard = useCallback(async (mode: "around" | "top" | "after" = "around") => {
     if (!quizId) {
       return;
     }
@@ -154,7 +157,7 @@ export default function PlayQuizScreen() {
       setLeaderboardTopLoading(false);
       setLeaderboardMoreLoading(false);
     }
-  };
+  }, [quizId, hasMoreAbove, leaderboardTopLoading, hasMoreBelow, leaderboardMoreLoading, leaderboard, applyLeaderboardResponse]);
 
   const focusCurrentUserRow = (rowY: number, rowHeight: number) => {
     if (hasAutoFocusedCurrentUser.current) {
@@ -193,10 +196,16 @@ export default function PlayQuizScreen() {
     const fetchQuiz = async () => {
       setLoading(true);
       preloadSoundEffects();
-      const data = await loadQuizById(quizId);
+      const [data, storedUserData] = await Promise.all([
+        loadQuizById(quizId),
+        getItem<any>("userData"),
+      ]);
       const totalTimer = data?.timerSeconds || (data?.questions?.length ? data.questions.length * 15 : DEFAULT_QUIZ_TIMER);
       setQuiz(data);
       setIsLiked(Boolean(data?.userStats?.isLiked));
+      setCurrentPoints(
+        storedUserData?.user ? Number(storedUserData.user.points ?? 0) : null
+      );
       setInitialTimer(totalTimer);
       setTimer(totalTimer);
       setLoading(false);
@@ -240,15 +249,35 @@ export default function PlayQuizScreen() {
 
     const syncResultAndLeaderboard = async () => {
       setDidSubmitResult(true);
-      await recordQuizPlay(quiz.id, {
+      const result = await recordQuizPlay(quiz.id, {
         score,
         totalQuestions: quiz.questions.length,
       });
+
+      const updatedPoints = result?.data?.totalPoints;
+      const earnedPoints = Number(result?.data?.pointsEarned || 0);
+      setPointsEarned(earnedPoints);
+
+      if (typeof updatedPoints === "number") {
+        setCurrentPoints(updatedPoints);
+        const storedUserData: any = await getItem("userData");
+
+        if (storedUserData?.user) {
+          await saveItem("userData", {
+            ...storedUserData,
+            user: {
+              ...storedUserData.user,
+              points: updatedPoints,
+            },
+          });
+        }
+      }
+
       await fetchLeaderboard("around");
     };
 
     syncResultAndLeaderboard();
-  }, [showResult, quiz, didSubmitResult, score]);
+  }, [showResult, quiz, didSubmitResult, score, fetchLeaderboard]);
 
   useEffect(() => {
     if (!showResult) {
@@ -328,7 +357,7 @@ export default function PlayQuizScreen() {
 
     try {
       await toggleQuizLike(quizId, nextValue);
-    } catch (error) {
+    } catch {
       setIsLiked(!nextValue);
     } finally {
       setLikeBusy(false);
@@ -340,6 +369,7 @@ export default function PlayQuizScreen() {
     setSelected(null);
     setSelectedCorrect(null);
     setScore(0);
+    setPointsEarned(0);
     setTimer(initialTimer);
     setShowResult(false);
     setDidSubmitResult(false);
@@ -390,6 +420,7 @@ export default function PlayQuizScreen() {
           title={quiz.name || translate("playQuiz.title")}
           subtitle={`${translate("playQuiz.question")} ${Math.min(current + 1, quiz.questions.length)}/${quiz.questions.length}`}
           onBackPress={() => navigation.goBack()}
+          points={currentPoints}
         />
       </View>
 
@@ -412,6 +443,11 @@ export default function PlayQuizScreen() {
             <Text style={styles.resultEyebrow}>{translate("playQuiz.completed")}</Text>
             <Text style={styles.resultTitle}>{translate("playQuiz.finished")}</Text>
             <Text style={styles.resultScore}>{translate("playQuiz.score")}: {score}/{quiz.questions.length}</Text>
+            {pointsEarned > 0 ? (
+              <View style={styles.pointsEarnedBadge}>
+                <Text style={styles.pointsEarnedText}>{translate("points.earned")}: +{pointsEarned} {translate("points.unit")}</Text>
+              </View>
+            ) : null}
 
             <View style={styles.leaderboardCard}>
               <View style={styles.leaderboardHeader}>
@@ -665,6 +701,20 @@ const styles = StyleSheet.create({
     fontSize: 18,
     color: theme.textMuted,
     marginBottom: 10,
+  },
+  pointsEarnedBadge: {
+    backgroundColor: `${theme.success}18`,
+    borderWidth: 1,
+    borderColor: `${theme.success}55`,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 999,
+    marginBottom: 10,
+  },
+  pointsEarnedText: {
+    color: theme.success,
+    fontSize: 14,
+    fontWeight: "800",
   },
   leaderboardCard: {
     width: "100%",

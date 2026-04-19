@@ -1,5 +1,4 @@
 
-import axios from "axios";
 import { API_URL } from "../config/api";
 import log from "../utils/logService";
 import apiClient from "../config/apiClient";
@@ -23,8 +22,24 @@ export const saveQuiz = async (quizData: Object) => {
     log.info(`${URI}`);
     const res = await apiClient.post(`${URI}`, quizData);
     return res.data;
-  } catch (error) {
-    log.error("Error loading themes:", error);
+  } catch (error: any) {
+    log.error("Error saving quiz:", error);
+    return error?.response?.data || { error: "Unable to save quiz" };
+  }
+};
+
+export const generateAiQuiz = async (payload: {
+  fk_theme: number;
+  themeName?: string;
+  questionCount: number;
+  prompt: string;
+}) => {
+  try {
+    const res = await apiClient.post(`${URI}/generate-ai`, payload);
+    return res.data;
+  } catch (error: any) {
+    log.error("Error generating AI quiz:", error);
+    return error?.response?.data || { error: "Unable to generate AI quiz" };
   }
 };
 
@@ -42,8 +57,9 @@ export const updateQuiz = async (quizId: number, quizData: Object) => {
   try {
     const res = await apiClient.put(`${URI}/${quizId}`, quizData);
     return res.data;
-  } catch (error) {
+  } catch (error: any) {
     log.error("Error updating quiz:", error);
+    return error?.response?.data || { error: "Unable to update quiz" };
   }
 };
 

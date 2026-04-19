@@ -1,6 +1,7 @@
 import React from "react";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import CreateQuizScreen from "../screens/CreateQuizScreen/CreateQuizScreen";
+import AIQuizCreatorScreen from "../screens/CreateQuizScreen/AIQuizCreatorScreen";
 import ProfileScreen from "../screens/ProfilScreen/ProfileScreen";
 import MyQuizScreen from "../screens/ProfilScreen/MyQuizScreen";
 import EditProfileScreen from "../screens/ProfilScreen/EditProfileScreen";
@@ -25,6 +26,11 @@ export default function HomeStackNavigator() {
       <HomeStack.Screen 
             name="CreateQuizScreen" 
             component={CreateQuizScreen} 
+            options={{ headerShown: false }}
+        />
+      <HomeStack.Screen 
+            name="AIQuizCreatorScreen" 
+            component={AIQuizCreatorScreen} 
             options={{ headerShown: false }}
         />
       <HomeStack.Screen 

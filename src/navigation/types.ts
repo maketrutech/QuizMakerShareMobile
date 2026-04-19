@@ -14,6 +14,7 @@ export type ProfilStackParamList = {
   ProfileScreenMain: undefined;
   MyQuizScreen: undefined;
   CreateQuizScreen: undefined;
+  AIQuizCreatorScreen: undefined;
   EditQuizScreen: { quizId: number };
   EditProfileScreen: undefined;
   QuizPlayersLeaderboardScreen: { quizId: number; quizName?: string; questionCount?: number };

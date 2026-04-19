@@ -16,6 +16,7 @@ export default function ProfileScreen() {
     avatar: "avatar1",
   });
 
+
   useFocusEffect(
     useCallback(() => {
       const loadProfile = async () => {
@@ -72,6 +73,14 @@ export default function ProfileScreen() {
 
         <TouchableOpacity style={styles.primaryButton} onPress={() => navigation.navigate("CreateQuizScreen")}>
           <Text style={styles.primaryButtonText}>{translate("profile.create_quiz")}</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.aiButton, styles.disabledButton]}
+          disabled={true}
+          activeOpacity={1}
+        >
+          <Text style={styles.aiButtonText}>{translate("profile.ai_create_quiz")}</Text>
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.secondaryButton} onPress={handleLogout}>
@@ -168,6 +177,21 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   primaryButtonText: {
+    color: colors.white,
+    fontSize: 16,
+    fontWeight: "800",
+  },
+  aiButton: {
+    backgroundColor: colors.success,
+    borderRadius: 16,
+    paddingVertical: 15,
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  disabledButton: {
+    opacity: 0.45,
+  },
+  aiButtonText: {
     color: colors.white,
     fontSize: 16,
     fontWeight: "800",
