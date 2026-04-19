@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import LinearGradient from "react-native-linear-gradient";
 import debounce from "lodash/debounce";
@@ -17,6 +17,7 @@ type MyQuizItem = {
   totalPlayers: number;
   totalPlays: number;
   bestScore: number;
+  questionCount: number;
   likeCount: number;
   likeRate: number;
 };
@@ -146,7 +147,6 @@ export default function MyQuizScreen({ navigation }: any) {
           loading={loading}
           estimatedItemSize={170}
           keyExtractor={(item) => String(item.id)}
-          onItemPress={(item) => navigation.navigate("EditQuizScreen", { quizId: item.id })}
           emptyStateText={translate("myQuiz.empty")}
           contentContainerStyle={styles.contentContainer}
           onEndReached={handleLoadMore}
@@ -170,40 +170,60 @@ export default function MyQuizScreen({ navigation }: any) {
                 <View style={[styles.accentBar, { backgroundColor: accentColor }]} />
 
                 <View style={styles.cardContent}>
-                  <View style={[styles.statusBadge, { backgroundColor: `${accentColor}22` }]}>
-                    <Text style={[styles.statusText, { color: accentColor }]}>
-                      {translate(statusKey)}
+                  <TouchableOpacity
+                    activeOpacity={0.88}
+                    onPress={() => navigation.navigate("EditQuizScreen", { quizId: item.id })}
+                  >
+                    <View style={[styles.statusBadge, { backgroundColor: `${accentColor}22` }]}>
+                      <Text style={[styles.statusText, { color: accentColor }]}>
+                        {translate(statusKey)}
+                      </Text>
+                    </View>
+
+                    <Text style={styles.cardTitle}>{item.name}</Text>
+                    <Text style={styles.cardDescription}>
+                      {item.description || translate("myQuiz.no_description")}
                     </Text>
-                  </View>
 
-                  <Text style={styles.cardTitle}>{item.name}</Text>
-                  <Text style={styles.cardDescription}>
-                    {item.description || translate("myQuiz.no_description")}
-                  </Text>
+                    <View style={styles.metricsRow}>
+                      <View style={styles.metricChip}>
+                        <Text style={styles.metricLabel}>{translate("myQuiz.players")}</Text>
+                        <Text style={styles.metricValue}>{item.totalPlayers}</Text>
+                      </View>
 
-                  <View style={styles.metricsRow}>
-                    <View style={styles.metricChip}>
-                      <Text style={styles.metricLabel}>{translate("myQuiz.players")}</Text>
-                      <Text style={styles.metricValue}>{item.totalPlayers}</Text>
+                      <View style={styles.metricChip}>
+                        <Text style={styles.metricLabel}>{translate("myQuiz.plays")}</Text>
+                        <Text style={styles.metricValue}>{item.totalPlays}</Text>
+                      </View>
                     </View>
 
-                    <View style={styles.metricChip}>
-                      <Text style={styles.metricLabel}>{translate("myQuiz.plays")}</Text>
-                      <Text style={styles.metricValue}>{item.totalPlays}</Text>
-                    </View>
-                  </View>
+                    <View style={styles.metricsRow}>
+                      <View style={styles.metricChip}>
+                        <Text style={styles.metricLabel}>{translate("myQuiz.best_score")}</Text>
+                        <Text style={styles.metricValue}>{item.bestScore}{item.questionCount ? `/${item.questionCount}` : ""}</Text>
+                      </View>
 
-                  <View style={styles.metricsRow}>
-                    <View style={styles.metricChip}>
-                      <Text style={styles.metricLabel}>{translate("myQuiz.best_score")}</Text>
-                      <Text style={styles.metricValue}>{item.bestScore}%</Text>
+                      <View style={styles.metricChip}>
+                        <Text style={styles.metricLabel}>{translate("myQuiz.likes")}</Text>
+                        <Text style={styles.metricValue}>{item.likeRate}%</Text>
+                      </View>
                     </View>
+                  </TouchableOpacity>
 
-                    <View style={styles.metricChip}>
-                      <Text style={styles.metricLabel}>{translate("myQuiz.likes")}</Text>
-                      <Text style={styles.metricValue}>{item.likeRate}%</Text>
-                    </View>
-                  </View>
+                  <TouchableOpacity
+                    style={styles.playersButton}
+                    onPress={() => navigation.navigate("QuizPlayersLeaderboardScreen", {
+                      quizId: item.id,
+                      quizName: item.name,
+                      questionCount: item.questionCount,
+                    })}
+                  >
+                    <Text style={styles.playersButtonText}>
+                      {translate("myQuiz.view_players") === "myQuiz.view_players"
+                        ? translate("myQuiz.players")
+                        : translate("myQuiz.view_players")}
+                    </Text>
+                  </TouchableOpacity>
                 </View>
               </LinearGradient>
             );
@@ -301,6 +321,18 @@ const styles = StyleSheet.create({
   metricValue: {
     color: theme.black,
     fontSize: 18,
+    fontWeight: "800",
+  },
+  playersButton: {
+    marginTop: 4,
+    backgroundColor: theme.primary,
+    borderRadius: 14,
+    paddingVertical: 12,
+    alignItems: "center",
+  },
+  playersButtonText: {
+    color: theme.white,
+    fontSize: 14,
     fontWeight: "800",
   },
 });

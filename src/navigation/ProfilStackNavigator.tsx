@@ -4,6 +4,7 @@ import CreateQuizScreen from "../screens/CreateQuizScreen/CreateQuizScreen";
 import ProfileScreen from "../screens/ProfilScreen/ProfileScreen";
 import MyQuizScreen from "../screens/ProfilScreen/MyQuizScreen";
 import EditProfileScreen from "../screens/ProfilScreen/EditProfileScreen";
+import QuizPlayersLeaderboardScreen from "../screens/ProfilScreen/QuizPlayersLeaderboardScreen";
 import { ProfilStackParamList } from "./types";
 
 const HomeStack = createNativeStackNavigator<ProfilStackParamList>();
@@ -34,6 +35,11 @@ export default function HomeStackNavigator() {
       <HomeStack.Screen 
             name="EditProfileScreen" 
             component={EditProfileScreen} 
+            options={{ headerShown: false }}
+        />
+      <HomeStack.Screen 
+            name="QuizPlayersLeaderboardScreen" 
+            component={QuizPlayersLeaderboardScreen} 
             options={{ headerShown: false }}
         />
       {/* add more screens here if needed */}

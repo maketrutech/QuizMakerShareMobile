@@ -16,6 +16,7 @@ export type ProfilStackParamList = {
   CreateQuizScreen: undefined;
   EditQuizScreen: { quizId: number };
   EditProfileScreen: undefined;
+  QuizPlayersLeaderboardScreen: { quizId: number; quizName?: string; questionCount?: number };
 };
 
 export type ThemeStackParamList = {

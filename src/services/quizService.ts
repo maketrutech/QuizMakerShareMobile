@@ -83,3 +83,36 @@ export const toggleQuizLike = async (quizId: number, isLiked: boolean) => {
   }
 };
 
+export const loadQuizLeaderboard = async (
+  quizId: number,
+  options: { view?: "around" | "top" | "after"; limit?: number; startRank?: number } = {}
+) => {
+  try {
+    const query = [
+      options.view ? `view=${encodeURIComponent(options.view)}` : "",
+      options.limit ? `limit=${Number(options.limit)}` : "",
+      options.startRank ? `startRank=${Number(options.startRank)}` : "",
+    ]
+      .filter(Boolean)
+      .join("&");
+
+    const res = await apiClient.get(`${URI}/${quizId}/leaderboard${query ? `?${query}` : ""}`);
+    return res.data;
+  } catch (error) {
+    log.error("Error loading quiz leaderboard:", error);
+  }
+};
+
+export const loadQuizPlayersPage = async (
+  quizId: number,
+  page: number = 1,
+  limit: number = 10
+) => {
+  if (page <= 1) {
+    return loadQuizLeaderboard(quizId, { view: "top", limit });
+  }
+
+  const startRank = (page - 1) * limit + 1;
+  return loadQuizLeaderboard(quizId, { view: "after", startRank, limit });
+};
+
