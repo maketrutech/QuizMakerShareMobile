@@ -134,7 +134,7 @@ export default function LoginScreen({ navigation }: any) {
         disabled={loading || googleLoading}
       >
         <Text style={styles.googleButtonText}>
-          {googleLoading ? `${translate("loading")}...` : `🌐 ${t("auth.google_button", "Continue with Google")}`}
+          {googleLoading ? `${translate("loading")}...` : `🌐 ${translate("auth.google_button")}`}
         </Text>
       </TouchableOpacity>
 
