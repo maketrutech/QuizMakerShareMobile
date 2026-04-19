@@ -1,14 +1,37 @@
-import React from "react";
+import React, { useCallback, useState } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { View, StyleSheet, TouchableOpacity, Text } from "react-native";
+import { View, StyleSheet, TouchableOpacity, Text, Image } from "react-native";
 import colors from "../../styles/theme";
-import { removeItem } from "../../utils/storageService";
-import { useNavigation } from "@react-navigation/native";
+import { getItem, removeItem } from "../../utils/storageService";
+import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import GlassHeader from "../../components/GlassHeader";
 import { translate } from "../../services/translateService";
+import { getAvatarSource } from "../../utils/avatarOptions";
 
 export default function ProfileScreen() {
   const navigation = useNavigation<any>();
+  const [profile, setProfile] = useState({
+    username: "",
+    email: "",
+    avatar: "avatar1",
+  });
+
+  useFocusEffect(
+    useCallback(() => {
+      const loadProfile = async () => {
+        const userData: any = await getItem("userData");
+        if (userData?.user) {
+          setProfile({
+            username: userData.user.username || "",
+            email: userData.user.email || "",
+            avatar: userData.user.avatar || "avatar1",
+          });
+        }
+      };
+
+      loadProfile();
+    }, [])
+  );
 
   const handleLogout = async () => {
     await removeItem("userData");
@@ -30,9 +53,17 @@ export default function ProfileScreen() {
 
       <View style={styles.content}>
         <View style={styles.infoCard}>
-          <Text style={styles.infoEyebrow}>{translate("profile.your_space")}</Text>
-          <Text style={styles.infoTitle}>{translate("profile.keep_building")}</Text>
-          <Text style={styles.infoText}>{translate("profile.keep_building_text")}</Text>
+          <TouchableOpacity
+            style={styles.profileRow}
+            onPress={() => navigation.navigate("EditProfileScreen")}
+          >
+            <Image source={getAvatarSource(profile.avatar)} style={styles.avatarImage} />
+            <View style={styles.profileTextWrap}>
+              <Text style={styles.infoEyebrow}>{translate("profile.your_space")}</Text>
+              <Text style={styles.infoTitle}>{profile.username || translate("profile.keep_building")}</Text>
+              <Text style={styles.infoText}>{profile.email || translate("profile.keep_building_text")}</Text>
+            </View>
+          </TouchableOpacity>
         </View>
 
         <TouchableOpacity style={styles.accentButton} onPress={() => navigation.navigate("MyQuizScreen")}>
@@ -77,6 +108,22 @@ const styles = StyleSheet.create({
     shadowRadius: 18,
     elevation: 4,
   },
+  profileRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+  },
+  profileTextWrap: {
+    flex: 1,
+  },
+  avatarImage: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    borderWidth: 2,
+    borderColor: colors.primary,
+    backgroundColor: colors.surfaceSoft,
+  },
   infoEyebrow: {
     color: colors.secondary,
     fontSize: 12,
@@ -94,6 +141,12 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
     fontSize: 14,
     lineHeight: 20,
+  },
+  profileLinkText: {
+    marginTop: 10,
+    color: colors.primary,
+    fontSize: 14,
+    fontWeight: "800",
   },
   accentButton: {
     backgroundColor: colors.danger,

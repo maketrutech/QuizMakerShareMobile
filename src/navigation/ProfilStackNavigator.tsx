@@ -3,6 +3,7 @@ import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import CreateQuizScreen from "../screens/CreateQuizScreen/CreateQuizScreen";
 import ProfileScreen from "../screens/ProfilScreen/ProfileScreen";
 import MyQuizScreen from "../screens/ProfilScreen/MyQuizScreen";
+import EditProfileScreen from "../screens/ProfilScreen/EditProfileScreen";
 import { ProfilStackParamList } from "./types";
 
 const HomeStack = createNativeStackNavigator<ProfilStackParamList>();
@@ -28,6 +29,11 @@ export default function HomeStackNavigator() {
       <HomeStack.Screen 
             name="EditQuizScreen" 
             component={CreateQuizScreen} 
+            options={{ headerShown: false }}
+        />
+      <HomeStack.Screen 
+            name="EditProfileScreen" 
+            component={EditProfileScreen} 
             options={{ headerShown: false }}
         />
       {/* add more screens here if needed */}

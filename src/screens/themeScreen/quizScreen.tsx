@@ -1,7 +1,6 @@
 import React, { useEffect, useState, useCallback } from "react";
 import {
   View,
-  Image,
   StyleSheet,
   Text,
   ActivityIndicator,
@@ -108,7 +107,9 @@ export default function QuizScreen() {
           </Text>
         </View>
 
-        <Image source={require("../../assets/images/bg-quiz.png")} style={styles.picture} />
+        <View style={styles.playBadge}>
+          <Text style={styles.playBadgeText}>{translate("quizBrowse.play")}</Text>
+        </View>
       </View>
     </LinearGradient>
   );
@@ -210,9 +211,18 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 18,
   },
-  picture: {
-    width: 86,
-    height: 58,
-    resizeMode: "contain",
+  playBadge: {
+    minWidth: 86,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 999,
+    backgroundColor: theme.primary,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  playBadgeText: {
+    color: theme.white,
+    fontSize: 15,
+    fontWeight: "800",
   },
 });

@@ -34,12 +34,16 @@ export default function GlassHeader({
   return (
     <View style={styles.wrapper}>
       <View style={styles.glassCard}>
-        <BlurView
-          style={StyleSheet.absoluteFill}
-          blurType={Platform.OS === "ios" ? "light" : "light"}
-          blurAmount={18}
-          reducedTransparencyFallbackColor="rgba(255,255,255,0.92)"
-        />
+        {Platform.OS === "ios" ? (
+          <BlurView
+            style={StyleSheet.absoluteFill}
+            blurType="light"
+            blurAmount={18}
+            reducedTransparencyFallbackColor="rgba(255,255,255,0.96)"
+          />
+        ) : (
+          <View style={styles.androidHeaderFill} />
+        )}
 
         <View style={styles.content}>
           <View style={styles.topRow}>
@@ -92,9 +96,13 @@ const styles = StyleSheet.create({
   glassCard: {
     borderRadius: theme.radiusCard,
     overflow: "hidden",
-    backgroundColor: theme.glass,
+    backgroundColor: Platform.OS === "ios" ? theme.glass : "#f8f5ff",
     borderWidth: 1,
-    borderColor: theme.glassBorder,
+    borderColor: Platform.OS === "ios" ? theme.glassBorder : theme.border,
+  },
+  androidHeaderFill: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "#f8f5ff",
   },
   content: {
     padding: 18,

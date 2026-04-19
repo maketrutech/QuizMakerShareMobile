@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { OneSignal } from "react-native-onesignal";
+import { SafeAreaProvider } from "react-native-safe-area-context";
 import AppNavigator from "./src/navigation/AppNavigator";
 import LoadingScreen from "./src/screens/LoadingScreen";
 import { saveItem } from "./src/utils/storageService";
@@ -57,8 +58,16 @@ export default function App() {
   }, []);
 
   if (!ready) {
-    return <LoadingScreen />;
+    return (
+      <SafeAreaProvider>
+        <LoadingScreen />
+      </SafeAreaProvider>
+    );
   }
 
-  return <AppNavigator />;
+  return (
+    <SafeAreaProvider>
+      <AppNavigator />
+    </SafeAreaProvider>
+  );
 }

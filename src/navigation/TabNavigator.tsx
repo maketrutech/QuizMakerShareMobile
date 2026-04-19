@@ -1,6 +1,7 @@
 import React from "react";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { FontAwesomeFreeSolid } from "@react-native-vector-icons/fontawesome-free-solid";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import theme from "../styles/theme";
 import HomeStackNavigator from "./HomeStackNavigator";
 import ProfilStackNavigator from "./ProfilStackNavigator";
@@ -9,6 +10,9 @@ import ThemeStackNavigator from "./ThemeStackNavigator";
 const Tab = createBottomTabNavigator();
 
 export default function TabNavigator() {
+	const insets = useSafeAreaInsets();
+	const bottomInset = Math.max(insets.bottom, 4);
+
 	return (
 		<Tab.Navigator
 			initialRouteName="HomeConnected"
@@ -35,26 +39,31 @@ export default function TabNavigator() {
 				tabBarActiveTintColor: theme.primary,
 				tabBarInactiveTintColor: theme.textMuted,
 				tabBarLabelStyle: {
-					fontSize: 12,
+					fontSize: 10,
 					fontWeight: "700",
+					marginBottom: 2,
+				},
+				tabBarItemStyle: {
+					paddingVertical: 1,
 				},
 				tabBarStyle: {
 					position: "absolute",
 					left: 16,
 					right: 16,
-					bottom: 16,
-					height: 66,
+					bottom: bottomInset,
+					height: 60,
 					borderTopWidth: 0,
-					borderRadius: 20,
-					paddingTop: 8,
-					paddingBottom: 8,
-					backgroundColor: "rgba(255,255,255,0.92)",
-					elevation: 8,
-					shadowColor: theme.primary,
-					shadowOffset: { width: 0, height: 8 },
-					shadowOpacity: 0.12,
-					shadowRadius: 16,
+					borderWidth: 0,
+					paddingTop: 2,
+					paddingBottom: 0,
+					backgroundColor: "rgba(255,255,255,0.96)",
+					elevation: 3,
+					shadowColor: "#000000",
+					shadowOffset: { width: 0, height: 3 },
+					shadowOpacity: 0.08,
+					shadowRadius: 8,
 				},
+				tabBarBackground: () => null,
 				headerStyle: { backgroundColor: theme.primary },
 				headerTintColor: theme.secondary,
 			})}
