@@ -12,7 +12,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import theme from "../../styles/theme";
 import GlassHeader from "../../components/GlassHeader";
-import { translate } from "../../services/translateService";
+import { translate, useTranslationVersion } from "../../services/translateService";
 import { loadThemes } from "../../services/themeService";
 import { generateAiQuiz } from "../../services/quizService";
 import { getItem, saveItem } from "../../utils/storageService";
@@ -25,6 +25,7 @@ type ThemeItem = {
 const QUICK_COUNTS = [10, 20, 50, 100];
 
 export default function AIQuizCreatorScreen({ navigation }: any) {
+  useTranslationVersion();
   const [themes, setThemes] = useState<ThemeItem[]>([]);
   const [screenLoading, setScreenLoading] = useState(true);
   const [saving, setSaving] = useState(false);

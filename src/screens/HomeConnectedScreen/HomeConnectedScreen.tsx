@@ -3,9 +3,10 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { View, StyleSheet, Text, TouchableOpacity } from "react-native";
 import colors from "../../styles/theme";
 import GlassHeader from "../../components/GlassHeader";
-import { translate } from "../../services/translateService";
+import { translate, useTranslationVersion } from "../../services/translateService";
 
 export default function HomeConnectedScreen({ navigation }: any) {
+  useTranslationVersion();
   const parentNavigation = navigation.getParent?.();
 
   return (

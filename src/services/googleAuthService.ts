@@ -21,7 +21,7 @@ export const configureGoogleSignIn = () => {
   isConfigured = true;
 };
 
-export const signInWithGoogle = async (pushToken?: string | null) => {
+export const signInWithGoogle = async (pushToken?: string | null, countryId?: number | null) => {
   configureGoogleSignIn();
 
   if (GOOGLE_WEB_CLIENT_ID.startsWith("YOUR_FIREBASE_WEB_CLIENT_ID")) {
@@ -53,6 +53,7 @@ export const signInWithGoogle = async (pushToken?: string | null) => {
     googleIdToken,
     webClientId: GOOGLE_WEB_CLIENT_ID,
     tokenPhone: pushToken,
+    countryId: Number(countryId),
   });
 };
 

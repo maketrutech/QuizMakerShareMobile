@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useRef } from "react";
 import {
   View,
   StyleSheet,
@@ -6,9 +6,9 @@ import {
   ActivityIndicator,
 } from "react-native";
 import LinearGradient from "react-native-linear-gradient";
-import { useRoute, useNavigation } from "@react-navigation/native";
+import { useFocusEffect, useRoute, useNavigation } from "@react-navigation/native";
 import debounce from "lodash/debounce";
-import { translate } from "../../services/translateService";
+import { translate, useTranslationVersion } from "../../services/translateService";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { ThemeStackParamList } from "../../navigation/types";
@@ -29,6 +29,7 @@ type Quiz = {
 type HomeScreenNavigationProp = NativeStackNavigationProp<ThemeStackParamList, "ThemeScreen">;
 
 export default function QuizScreen() {
+  const translationVersion = useTranslationVersion();
   const navigation = useNavigation<HomeScreenNavigationProp>();
   const route = useRoute<any>();
   const [search, setSearch] = useState("");
@@ -37,9 +38,10 @@ export default function QuizScreen() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [pageNumber, setPageNumber] = useState(page);
   const [hasMore, setHasMore] = useState(true);
+  const searchRef = useRef("");
   const { themeId } = route.params;
 
-  const fetchQuizzes = async (currentPage: number, searchValue: string = search) => {
+  const fetchQuizzes = useCallback(async (currentPage: number, searchValue: string = searchRef.current) => {
     try {
       setLoadingMore(true);
 
@@ -57,15 +59,23 @@ export default function QuizScreen() {
       setLoading(false);
       setLoadingMore(false);
     }
-  };
+  }, [themeId]);
 
-  useEffect(() => {
-    if (themeId) {
+  useFocusEffect(
+    useCallback(() => {
+      if (!themeId) {
+        return;
+      }
+
       setPageNumber(page);
       setHasMore(true);
-      fetchQuizzes(1, "");
-    }
-  }, [themeId]);
+      fetchQuizzes(1, searchRef.current);
+    }, [fetchQuizzes, themeId, translationVersion])
+  );
+
+  useEffect(() => {
+    searchRef.current = search;
+  }, [search]);
 
   const debouncedSearch = useCallback(
     debounce((query: string) => {
@@ -74,7 +84,7 @@ export default function QuizScreen() {
       setHasMore(true);
       fetchQuizzes(1, trimmed);
     }, 500),
-    [themeId]
+    [fetchQuizzes]
   );
 
   useEffect(() => {

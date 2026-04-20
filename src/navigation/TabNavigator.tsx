@@ -6,10 +6,12 @@ import theme from "../styles/theme";
 import HomeStackNavigator from "./HomeStackNavigator";
 import ProfilStackNavigator from "./ProfilStackNavigator";
 import ThemeStackNavigator from "./ThemeStackNavigator";
+import { translate, useTranslationVersion } from "../services/translateService";
 
 const Tab = createBottomTabNavigator();
 
 export default function TabNavigator() {
+	useTranslationVersion();
 	const insets = useSafeAreaInsets();
 	const bottomInset = Math.max(insets.bottom, 4);
 
@@ -36,6 +38,20 @@ export default function TabNavigator() {
 						/>
 					);
 				},
+				tabBarLabel:
+					route.name === "HomeConnected"
+						? translate("tab.home") === "tab.home"
+							? translate("home.title")
+							: translate("tab.home")
+						: route.name === "ThemeScreen"
+							? translate("tab.themes") === "tab.themes"
+								? translate("themeBrowse.title")
+								: translate("tab.themes")
+							: route.name === "Profil"
+								? translate("tab.profile") === "tab.profile"
+									? translate("profile.title")
+									: translate("tab.profile")
+								: route.name,
 				tabBarActiveTintColor: theme.primary,
 				tabBarInactiveTintColor: theme.textMuted,
 				tabBarLabelStyle: {

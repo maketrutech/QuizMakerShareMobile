@@ -15,7 +15,7 @@ import { loadThemes } from "../../services/themeService";
 import { getItem, saveItem } from "../../../src/utils/storageService";
 import GlassHeader from "../../components/GlassHeader";
 import AppDialog from "../../components/AppDialog";
-import { translate } from "../../services/translateService";
+import { getCurrentLanguage, translate, useTranslationVersion } from "../../services/translateService";
 
 type ThemeItem = {
   id: number;
@@ -51,6 +51,7 @@ const ensureFourAnswers = (items: string[] = []) => {
 };
 
 export default function CreateQuizScreen({ navigation, route }: any) {
+  useTranslationVersion();
   const quizId = route?.params?.quizId;
   const isEditMode = Boolean(quizId);
   const [quizTitle, setQuizTitle] = useState("");
@@ -61,7 +62,7 @@ export default function CreateQuizScreen({ navigation, route }: any) {
   const [themes, setThemes] = useState<ThemeItem[]>([]);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [allQuestions, setAllQuestions] = useState<EditableQuestion[]>([]);
-  const [deviceLanguage, setDeviceLanguage] = useState("fr");
+  const [quizLanguage, setQuizLanguage] = useState("fr");
   const [editingQuestionIndex, setEditingQuestionIndex] = useState<number | null>(null);
   const [screenLoading, setScreenLoading] = useState(false);
   const [dialog, setDialog] = useState<DialogState>({
@@ -117,9 +118,8 @@ export default function CreateQuizScreen({ navigation, route }: any) {
         const data = await loadThemes(1, 100, "");
         setThemes(data?.data || []);
 
-        const currentLanguage: any = await getItem("deviceLanguage");
-        const nextLanguage = currentLanguage || "fr";
-        setDeviceLanguage(nextLanguage);
+        const nextLanguage = await getCurrentLanguage();
+        setQuizLanguage(nextLanguage || "fr");
 
         if (isEditMode) {
           const quizData = await loadQuizById(Number(quizId));
@@ -213,7 +213,7 @@ export default function CreateQuizScreen({ navigation, route }: any) {
       question: trimmedQuestion,
       options: normalizedAnswers,
       correctAnswer: normalizedAnswers[correctIndex],
-      translations: [deviceLanguage],
+      translations: [quizLanguage],
     };
 
     return nextQuestion;
@@ -276,9 +276,9 @@ export default function CreateQuizScreen({ navigation, route }: any) {
           question: item.question,
           options: item.options,
           correctAnswer: item.correctAnswer,
-          translations: item.translations?.length ? item.translations : [deviceLanguage],
+          translations: item.translations?.length ? item.translations : [quizLanguage],
         })),
-        translations: [deviceLanguage],
+        translations: [quizLanguage],
       };
 
       const res = isEditMode

@@ -13,12 +13,14 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import GlassHeader from "../../components/GlassHeader";
 import AppDialog from "../../components/AppDialog";
+import { CountryItem, getCountries, getCountryFlagSource } from "../../services/countryService";
 import theme from "../../styles/theme";
 import { setAppLanguage, translate, useTranslationVersion } from "../../services/translateService";
 import { getItem, saveItem } from "../../utils/storageService";
 import { emailRegex, passwordRegex, usernameRegex } from "../../utils/validationRegex";
 import { avatarNames, getAvatarSource } from "../../utils/avatarOptions";
 import { changePassword, updateProfile } from "../../services/userService";
+import { getLanguageNativeLabel, LANGUAGE_OPTIONS } from "../../utils/languageOptions";
 
 type StoredUserData = {
   token: string;
@@ -27,17 +29,12 @@ type StoredUserData = {
     username: string;
     email: string;
     avatar?: string;
+    avatarUrl?: string;
     language?: string;
+    countryId?: number | null;
+    country?: CountryItem | null;
   };
 };
-
-const LANGUAGE_OPTIONS = [
-  { code: "en", labelKey: "language.option.en", fallback: "English" },
-  { code: "fr", labelKey: "language.option.fr", fallback: "Français" },
-  { code: "es", labelKey: "language.option.es", fallback: "Español" },
-  { code: "hi", labelKey: "language.option.hi", fallback: "हिन्दी" },
-  { code: "ar", labelKey: "language.option.ar", fallback: "العربية" },
-];
 
 export default function EditProfileScreen({ navigation }: any) {
   useTranslationVersion();
@@ -45,10 +42,15 @@ export default function EditProfileScreen({ navigation }: any) {
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [avatar, setAvatar] = useState("avatar1");
+  const [countries, setCountries] = useState<CountryItem[]>([]);
+  const [countryId, setCountryId] = useState<number | null>(null);
+  const [selectedCountry, setSelectedCountry] = useState<CountryItem | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [avatarDialogVisible, setAvatarDialogVisible] = useState(false);
   const [languageDialogVisible, setLanguageDialogVisible] = useState(false);
+  const [countryDialogVisible, setCountryDialogVisible] = useState(false);
+  const [countryDialogLoading, setCountryDialogLoading] = useState(false);
   const [language, setLanguage] = useState("en");
   const [passwordDialogVisible, setPasswordDialogVisible] = useState(false);
   const [currentPassword, setCurrentPassword] = useState("");
@@ -58,7 +60,10 @@ export default function EditProfileScreen({ navigation }: any) {
 
   useEffect(() => {
     const loadProfile = async () => {
-      const stored = await getItem<StoredUserData>("userData");
+      const [stored, countryList] = await Promise.all([
+        getItem<StoredUserData>("userData"),
+        getCountries(),
+      ]);
 
       if (!stored?.user) {
         Alert.alert(translate("common.error"), translate("profile.error.load_failed"));
@@ -67,15 +72,33 @@ export default function EditProfileScreen({ navigation }: any) {
       }
 
       setUserData(stored);
+      setCountries(countryList);
       setUsername(stored.user.username || "");
       setEmail(stored.user.email || "");
       setAvatar(stored.user.avatar || "avatar1");
       setLanguage(stored.user.language || "en");
+      setCountryId(typeof stored.user.countryId === "number" ? stored.user.countryId : null);
+      setSelectedCountry(stored.user.country || countryList.find((item) => item.id === stored.user.countryId) || null);
       setLoading(false);
     };
 
     loadProfile();
   }, [navigation]);
+
+  const openCountryDialog = () => {
+    if (countryDialogLoading) {
+      return;
+    }
+
+    setCountryDialogLoading(true);
+
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        setCountryDialogVisible(true);
+        setCountryDialogLoading(false);
+      });
+    });
+  };
 
   const handleSaveProfile = async () => {
     if (!userData?.user?.id) {
@@ -100,6 +123,7 @@ export default function EditProfileScreen({ navigation }: any) {
         email: email.trim().toLowerCase(),
         avatar,
         language,
+        countryId,
       });
 
       const nextUserData = {
@@ -217,8 +241,27 @@ export default function EditProfileScreen({ navigation }: any) {
 
           <TouchableOpacity style={styles.secondaryButton} onPress={() => setLanguageDialogVisible(true)}>
             <Text style={styles.secondaryButtonText}>
-              {translate("profile.language") === "profile.language" ? "Language" : translate("profile.language")}: {(translate(LANGUAGE_OPTIONS.find((item) => item.code === language)?.labelKey) !== LANGUAGE_OPTIONS.find((item) => item.code === language)?.labelKey ? translate(LANGUAGE_OPTIONS.find((item) => item.code === language)?.labelKey) : LANGUAGE_OPTIONS.find((item) => item.code === language)?.fallback) || "English"}
+              {translate("profile.language") === "profile.language" ? "Language" : translate("profile.language")}: {getLanguageNativeLabel(language)}
             </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.secondaryButton, countryDialogLoading && styles.buttonDisabled]}
+            onPress={openCountryDialog}
+            disabled={countryDialogLoading}
+          >
+            <View style={styles.countryButtonContent}>
+              {selectedCountry ? (
+                <Image
+                  source={getCountryFlagSource(selectedCountry.flagUrl, selectedCountry.key)}
+                  style={styles.countryButtonFlag}
+                />
+              ) : null}
+              <Text style={styles.secondaryButtonText}>
+                {(translate("profile.country") === "profile.country" ? "Country" : translate("profile.country"))}: {selectedCountry?.name || (translate("profile.country_placeholder") === "profile.country_placeholder" ? "Choose country" : translate("profile.country_placeholder"))}
+              </Text>
+              {countryDialogLoading ? <ActivityIndicator size="small" color={theme.primary} /> : null}
+            </View>
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.secondaryButton} onPress={() => setPasswordDialogVisible(true)}>
@@ -279,8 +322,39 @@ export default function EditProfileScreen({ navigation }: any) {
                 }}
               >
                 <Text style={[styles.languageOptionText, isSelected && styles.languageOptionTextSelected]}>
-                  {translate(item.labelKey) !== item.labelKey ? translate(item.labelKey) : item.fallback}
+                  {item.nativeLabel}
                 </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      </AppDialog>
+
+      <AppDialog
+        visible={countryDialogVisible}
+        title={translate("profile.country") === "profile.country" ? "Choose country" : translate("profile.country")}
+        subtitle={translate("profile.country_subtitle") === "profile.country_subtitle" ? "Select your country and flag" : translate("profile.country_subtitle")}
+        onClose={() => setCountryDialogVisible(false)}
+      >
+        <View style={styles.languageList}>
+          {countries.map((item) => {
+            const isSelected = countryId === item.id;
+            return (
+              <TouchableOpacity
+                key={item.id}
+                style={[styles.languageOption, isSelected && styles.languageOptionSelected]}
+                onPress={() => {
+                  setCountryId(item.id);
+                  setSelectedCountry(item);
+                  setCountryDialogVisible(false);
+                }}
+              >
+                <View style={styles.countryOptionContent}>
+                  <Image source={getCountryFlagSource(item.flagUrl, item.key)} style={styles.countryOptionFlag} />
+                  <Text style={[styles.languageOptionText, isSelected && styles.languageOptionTextSelected]}>
+                    {item.name}
+                  </Text>
+                </View>
               </TouchableOpacity>
             );
           })}
@@ -455,6 +529,19 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     fontSize: 15,
   },
+  countryButtonContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+  },
+  countryButtonFlag: {
+    width: 24,
+    height: 18,
+    borderRadius: 4,
+    marginRight: 10,
+    backgroundColor: theme.white,
+  },
   buttonDisabled: {
     opacity: 0.7,
   },
@@ -486,6 +573,18 @@ const styles = StyleSheet.create({
   },
   languageOptionTextSelected: {
     color: theme.primary,
+  },
+  countryOptionContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    width: "100%",
+  },
+  countryOptionFlag: {
+    width: 28,
+    height: 20,
+    borderRadius: 4,
+    marginRight: 12,
+    backgroundColor: theme.white,
   },
   avatarOption: {
     width: "30%",

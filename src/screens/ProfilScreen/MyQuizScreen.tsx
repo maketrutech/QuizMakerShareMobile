@@ -1,13 +1,14 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import LinearGradient from "react-native-linear-gradient";
 import debounce from "lodash/debounce";
+import { useFocusEffect } from "@react-navigation/native";
 import GlassHeader from "../../components/GlassHeader";
 import GenericList from "../../components/GenericList";
 import theme from "../../styles/theme";
 import commonStyles from "../../styles/commonStyles";
-import { translate } from "../../services/translateService";
+import { translate, useTranslationVersion } from "../../services/translateService";
 import { loadMyQuizzes } from "../../services/quizService";
 
 type MyQuizItem = {
@@ -50,12 +51,14 @@ const getStatusKey = (item: MyQuizItem) => {
 };
 
 export default function MyQuizScreen({ navigation }: any) {
+  useTranslationVersion();
   const [quizzes, setQuizzes] = useState<MyQuizItem[]>([]);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [page, setPage] = useState(DEFAULT_PAGE);
   const [hasMore, setHasMore] = useState(true);
+  const searchRef = useRef("");
 
   const fetchMyQuizzes = useCallback(async (
     pageNumber: number = DEFAULT_PAGE,
@@ -91,9 +94,15 @@ export default function MyQuizScreen({ navigation }: any) {
     }
   }, []);
 
+  useFocusEffect(
+    useCallback(() => {
+      fetchMyQuizzes(DEFAULT_PAGE, searchRef.current, true);
+    }, [fetchMyQuizzes])
+  );
+
   useEffect(() => {
-    fetchMyQuizzes(DEFAULT_PAGE, "", true);
-  }, [fetchMyQuizzes]);
+    searchRef.current = search;
+  }, [search]);
 
   const debouncedSearch = useCallback(
     debounce((text: string) => {

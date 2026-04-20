@@ -15,6 +15,7 @@ export default function ProfileScreen() {
     username: "",
     email: "",
     avatar: "avatar1",
+    avatarUrl: "",
   });
 
 
@@ -27,6 +28,7 @@ export default function ProfileScreen() {
             username: userData.user.username || "",
             email: userData.user.email || "",
             avatar: userData.user.avatar || "avatar1",
+            avatarUrl: userData.user.avatarUrl || "",
           });
         }
       };
@@ -59,7 +61,7 @@ export default function ProfileScreen() {
             style={styles.profileRow}
             onPress={() => navigation.navigate("EditProfileScreen")}
           >
-            <Image source={getAvatarSource(profile.avatar)} style={styles.avatarImage} />
+            <Image source={getAvatarSource(profile.avatar, profile.avatarUrl)} style={styles.avatarImage} />
             <View style={styles.profileTextWrap}>
               <Text style={styles.infoEyebrow}>{translate("profile.your_space")}</Text>
               <Text style={styles.infoTitle}>{profile.username || translate("profile.keep_building")}</Text>

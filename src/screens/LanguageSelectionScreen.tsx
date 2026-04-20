@@ -16,14 +16,7 @@ import {
   useTranslationVersion,
 } from "../services/translateService";
 import { getItem, saveItem } from "../utils/storageService";
-
-const LANGUAGE_OPTIONS = [
-  { code: "en", labelKey: "language.option.en", fallback: "English" },
-  { code: "fr", labelKey: "language.option.fr", fallback: "Français" },
-  { code: "es", labelKey: "language.option.es", fallback: "Español" },
-  { code: "hi", labelKey: "language.option.hi", fallback: "हिन्दी" },
-  { code: "ar", labelKey: "language.option.ar", fallback: "العربية" },
-];
+import { LANGUAGE_OPTIONS } from "../utils/languageOptions";
 
 const CONTINUE_LABELS: Record<string, string> = {
   en: "Continue",
@@ -112,7 +105,7 @@ export default function LanguageSelectionScreen({ navigation, route }: any) {
                   activeOpacity={0.9}
                 >
                   <Text style={[styles.languageOptionText, isSelected && styles.languageOptionTextSelected]}>
-                    {item.fallback}
+                    {item.nativeLabel}
                   </Text>
                 </TouchableOpacity>
               );

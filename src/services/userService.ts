@@ -5,7 +5,10 @@ import { API_URL } from "../config/api";
 const URI = `${API_URL}/users`;
 const AUTH_URI = `${API_URL}/auth`;
 
-export const updateProfile = async (userId: number, payload: { username: string; email: string; avatar: string; language?: string }) => {
+export const updateProfile = async (
+  userId: number,
+  payload: { username: string; email: string; avatar: string; language?: string; countryId?: number | null }
+) => {
   try {
     const response = await apiClient.put(`${URI}/${userId}`, payload);
     return response.data;

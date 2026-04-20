@@ -1,24 +1,32 @@
-export const avatarImages = {
-  avatar1: require("../assets/images/avatar/avatar1.png"),
-  avatar2: require("../assets/images/avatar/avatar2.png"),
-  avatar3: require("../assets/images/avatar/avatar3.png"),
-  avatar4: require("../assets/images/avatar/avatar4.png"),
-  avatar5: require("../assets/images/avatar/avatar5.png"),
-  avatar6: require("../assets/images/avatar/avatar6.png"),
-  avatar7: require("../assets/images/avatar/avatar7.png"),
-  avatar8: require("../assets/images/avatar/avatar8.png"),
-  avatar9: require("../assets/images/avatar/avatar9.png"),
-  avatar10: require("../assets/images/avatar/avatar10.png"),
-  avatar11: require("../assets/images/avatar/avatar11.png"),
-  avatar12: require("../assets/images/avatar/avatar12.png"),
-} as const;
+import { ImageSourcePropType } from "react-native";
+import { API_URL } from "../config/api";
 
-export const avatarNames = Object.keys(avatarImages) as Array<keyof typeof avatarImages>;
+const DEFAULT_AVATAR = "avatar1";
+const backendBaseUrl = API_URL.replace(/\/api\/?$/, "");
 
-export const getAvatarSource = (avatarName?: string) => {
-  if (avatarName && avatarName in avatarImages) {
-    return avatarImages[avatarName as keyof typeof avatarImages];
+export const avatarNames = Array.from({ length: 12 }, (_, index) => `avatar${index + 1}`) as string[];
+
+const normalizeAvatarName = (avatarName?: string | null) => {
+  const nextAvatar = String(avatarName || DEFAULT_AVATAR).trim();
+  return avatarNames.includes(nextAvatar) ? nextAvatar : DEFAULT_AVATAR;
+};
+
+export const getAvatarUrl = (avatarName?: string | null, avatarUrl?: string | null) => {
+  const trimmedAvatarUrl = String(avatarUrl || "").trim();
+
+  if (trimmedAvatarUrl) {
+    if (/^https?:\/\//i.test(trimmedAvatarUrl)) {
+      return trimmedAvatarUrl;
+    }
+
+    if (trimmedAvatarUrl.startsWith("/")) {
+      return `${backendBaseUrl}${trimmedAvatarUrl}`;
+    }
   }
 
-  return avatarImages.avatar1;
+  return `${backendBaseUrl}/public/avatars/${normalizeAvatarName(avatarName)}.png`;
 };
+
+export const getAvatarSource = (avatarName?: string | null, avatarUrl?: string | null): ImageSourcePropType => ({
+  uri: getAvatarUrl(avatarName, avatarUrl),
+});

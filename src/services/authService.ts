@@ -5,7 +5,23 @@ import log from "../utils/logService";
 
 const URI = `${API_URL}/auth`;
 
-export const register = async (userData: any) => {
+export type RegisterPayload = {
+  username: string;
+  email: string;
+  password: string;
+  tokenPhone?: string | null;
+  countryId: number;
+};
+
+export type GoogleAuthPayload = {
+  idToken?: string | null;
+  googleIdToken: string;
+  webClientId: string;
+  tokenPhone?: string | null;
+  countryId: number;
+};
+
+export const register = async (userData: RegisterPayload) => {
   try {
     log.info(`${URI}/register`);
     const response = await axios.post(`${URI}/register`, userData);
@@ -27,7 +43,7 @@ export const login = async (userData: any) => {
   }
 };
 
-export const googleLogin = async (userData: any) => {
+export const googleLogin = async (userData: GoogleAuthPayload) => {
   try {
     log.info(`${URI}/google`);
     const response = await axios.post(`${URI}/google`, userData);

@@ -60,7 +60,7 @@ export const subscribeToLanguageChange = (listener: () => void) => {
 };
 
 export const useTranslationVersion = () => {
-  const [, setVersion] = useState(0);
+  const [version, setVersion] = useState(0);
 
   useEffect(() => {
     const unsubscribe = subscribeToLanguageChange(() => {
@@ -69,6 +69,8 @@ export const useTranslationVersion = () => {
 
     return unsubscribe;
   }, []);
+
+  return version;
 };
 
 export const setAppLanguage = async (language: string) => {

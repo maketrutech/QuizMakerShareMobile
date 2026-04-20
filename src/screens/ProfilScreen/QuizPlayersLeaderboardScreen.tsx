@@ -3,7 +3,7 @@ import { ActivityIndicator, Image, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import GlassHeader from "../../components/GlassHeader";
 import GenericList from "../../components/GenericList";
-import { translate } from "../../services/translateService";
+import { translate, useTranslationVersion } from "../../services/translateService";
 import { loadQuizPlayersPage } from "../../services/quizService";
 import { getAvatarSource } from "../../utils/avatarOptions";
 import theme from "../../styles/theme";
@@ -16,12 +16,14 @@ type PlayerItem = {
   userId: number;
   username: string;
   avatar?: string;
+  avatarUrl?: string;
   bestScore: number;
   playCount: number;
   bestTimeSeconds?: number | null;
 };
 
 export default function QuizPlayersLeaderboardScreen({ navigation, route }: any) {
+  useTranslationVersion();
   const { quizId, quizName, questionCount } = route.params || {};
   const [players, setPlayers] = useState<PlayerItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -97,7 +99,7 @@ export default function QuizPlayersLeaderboardScreen({ navigation, route }: any)
                 <Text style={styles.rankText}>{item.rank}</Text>
               </View>
 
-              <Image source={getAvatarSource(item.avatar)} style={styles.avatar} />
+              <Image source={getAvatarSource(item.avatar, item.avatarUrl)} style={styles.avatar} />
 
               <View style={styles.textWrap}>
                 <Text style={styles.name}>{item.username}</Text>

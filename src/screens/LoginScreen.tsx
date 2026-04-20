@@ -3,7 +3,7 @@ import { Alert, StyleSheet, Text, TextInput, TouchableOpacity } from "react-nati
 import AuthShell from "../components/AuthShell";
 import { login } from "../services/authService";
 import { isGoogleCancelled, signInWithGoogle } from "../services/googleAuthService";
-import { translate } from "../services/translateService";
+import { translate, useTranslationVersion } from "../services/translateService";
 import theme from "../styles/theme";
 import log from "../utils/logService";
 import { getItem, saveItem } from "../utils/storageService";
@@ -15,6 +15,7 @@ const t = (key: string, fallback: string) => {
 };
 
 export default function LoginScreen({ navigation }: any) {
+  useTranslationVersion();
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [errors, setErrors] = useState({ identifier: "", password: "" });

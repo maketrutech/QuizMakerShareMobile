@@ -17,7 +17,7 @@ import { loadQuizById, loadQuizLeaderboard, recordQuizPlay, toggleQuizLike } fro
 import { preloadSoundEffects, releaseSoundEffects } from "../../services/soundService";
 import { SafeAreaView } from "react-native-safe-area-context";
 import GlassHeader from "../../components/GlassHeader";
-import { translate } from "../../services/translateService";
+import { translate, useTranslationVersion } from "../../services/translateService";
 import { getAvatarSource } from "../../utils/avatarOptions";
 import { getItem, saveItem } from "../../utils/storageService";
 
@@ -59,6 +59,7 @@ interface LeaderboardEntry {
   userId: number;
   username: string;
   avatar?: string;
+  avatarUrl?: string;
   bestScore: number;
   playCount: number;
   bestTimeSeconds?: number | null;
@@ -66,6 +67,7 @@ interface LeaderboardEntry {
 }
 
 export default function PlayQuizScreen() {
+  useTranslationVersion();
   const route = useRoute<any>();
   const navigation = useNavigation<any>();
   const { quizId } = route.params;
@@ -404,7 +406,7 @@ export default function PlayQuizScreen() {
         <Text style={styles.rankText}>{item.rank}</Text>
       </View>
 
-      <Image source={getAvatarSource(item.avatar)} style={styles.leaderboardAvatar} />
+      <Image source={getAvatarSource(item.avatar, item.avatarUrl)} style={styles.leaderboardAvatar} />
 
       <View style={styles.leaderboardTextWrap}>
         <Text style={styles.leaderboardName} numberOfLines={1}>

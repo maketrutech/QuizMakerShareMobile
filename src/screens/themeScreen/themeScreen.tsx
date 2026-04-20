@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useRef } from "react";
 import {
   View,
   StyleSheet,
@@ -7,10 +7,10 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import LinearGradient from "react-native-linear-gradient";
-import { useNavigation } from "@react-navigation/native";
+import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { ThemeStackParamList } from "../../navigation/types";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import { translate } from "../../services/translateService";
+import { translate, useTranslationVersion } from "../../services/translateService";
 import { FontAwesomeFreeSolid } from "@react-native-vector-icons/fontawesome-free-solid";
 import debounce from "lodash/debounce";
 import theme from "../../styles/theme";
@@ -31,6 +31,7 @@ type ThemeItem = {
 };
 
 export default function ThemeScreen() {
+  const translationVersion = useTranslationVersion();
   const navigation = useNavigation<HomeScreenNavigationProp>();
   const [search, setSearch] = useState("");
   const [themes, setThemes] = useState<ThemeItem[]>([]);
@@ -38,8 +39,9 @@ export default function ThemeScreen() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [page, setPage] = useState(DEFAULT_PAGE);
   const [hasMore, setHasMore] = useState(true);
+  const searchRef = useRef("");
 
-  const fetchThemes = async (
+  const fetchThemes = useCallback(async (
     pageNumber: number = DEFAULT_PAGE,
     searchValue: string = "",
     reset: boolean = false
@@ -71,11 +73,19 @@ export default function ThemeScreen() {
       setLoading(false);
       setLoadingMore(false);
     }
-  };
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      setPage(DEFAULT_PAGE);
+      setHasMore(true);
+      fetchThemes(DEFAULT_PAGE, searchRef.current, true);
+    }, [fetchThemes, translationVersion])
+  );
 
   useEffect(() => {
-    fetchThemes(DEFAULT_PAGE, "", true);
-  }, []);
+    searchRef.current = search;
+  }, [search]);
 
   const debouncedSearch = useCallback(
     debounce((text: string) => {
@@ -87,7 +97,7 @@ export default function ThemeScreen() {
         fetchThemes(DEFAULT_PAGE, "", true);
       }
     }, 500),
-    []
+    [fetchThemes]
   );
 
   useEffect(() => {
