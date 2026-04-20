@@ -10,7 +10,7 @@ import {
 import { FlashList } from "@shopify/flash-list";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import colors from "../styles/theme";
-import { translate } from "../services/translateService";
+import { translate, useTranslationVersion } from "../services/translateService";
 
 type GenericListProps<T> = {
   data: T[];
@@ -45,6 +45,8 @@ export default function GenericList<T>({
   showsHorizontalScrollIndicator = false,
   showsVerticalScrollIndicator = false,
 }: GenericListProps<T>) {
+  useTranslationVersion();
+
   if (loading && data.length === 0) {
     return (
       <View style={styles.loader}>

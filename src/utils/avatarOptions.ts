@@ -8,6 +8,9 @@ export const avatarImages = {
   avatar7: require("../assets/images/avatar/avatar7.png"),
   avatar8: require("../assets/images/avatar/avatar8.png"),
   avatar9: require("../assets/images/avatar/avatar9.png"),
+  avatar10: require("../assets/images/avatar/avatar10.png"),
+  avatar11: require("../assets/images/avatar/avatar11.png"),
+  avatar12: require("../assets/images/avatar/avatar12.png"),
 } as const;
 
 export const avatarNames = Object.keys(avatarImages) as Array<keyof typeof avatarImages>;

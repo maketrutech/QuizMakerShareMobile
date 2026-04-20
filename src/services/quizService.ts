@@ -2,15 +2,15 @@
 import { API_URL } from "../config/api";
 import log from "../utils/logService";
 import apiClient from "../config/apiClient";
-import * as RNLocalize from 'react-native-localize';
+import { getCurrentLanguage } from "./translateService";
 
 const URI = `${API_URL}/quiz`;
 
 export const loadQuiz = async (themeId: Number, page: Number, limit: Number, searchText: string = ``) => {
   try {
     const searchQuery = searchText ? `&searchText=${encodeURIComponent(searchText)}` : ``;
-    const deviceLanguage = RNLocalize.getLocales()[0]?.languageCode || 'en';
-    const res = await apiClient.get(`${URI}/theme/${themeId}/lang/${deviceLanguage}?page=${page}&limit=${limit}${searchQuery}`);
+    const selectedLanguage = await getCurrentLanguage();
+    const res = await apiClient.get(`${URI}/theme/${themeId}/lang/${selectedLanguage}?page=${page}&limit=${limit}${searchQuery}`);
     return res.data;
   } catch (error) {
     log.error("Error loading themes:", error);
@@ -45,8 +45,8 @@ export const generateAiQuiz = async (payload: {
 
 export const loadQuizById = async (quizId: number) => {
   try {
-    const deviceLanguage = RNLocalize.getLocales()[0]?.languageCode || 'en';
-    const res = await apiClient.get(`${URI}/${quizId}?lang=${deviceLanguage}`);
+    const selectedLanguage = await getCurrentLanguage();
+    const res = await apiClient.get(`${URI}/${quizId}?lang=${selectedLanguage}`);
     return res.data;
   } catch (error) {
     log.error("Error loading quiz by id:", error);
@@ -69,9 +69,9 @@ export const loadMyQuizzes = async (
   searchText: string = ""
 ) => {
   try {
-    const deviceLanguage = RNLocalize.getLocales()[0]?.languageCode || 'en';
+    const selectedLanguage = await getCurrentLanguage();
     const searchQuery = searchText ? `&searchText=${encodeURIComponent(searchText)}` : "";
-    const res = await apiClient.get(`${URI}/mine?lang=${deviceLanguage}&page=${page}&limit=${limit}${searchQuery}`);
+    const res = await apiClient.get(`${URI}/mine?lang=${selectedLanguage}&page=${page}&limit=${limit}${searchQuery}`);
     return res.data;
   } catch (error) {
     log.error("Error loading creator quizzes:", error);
@@ -80,7 +80,7 @@ export const loadMyQuizzes = async (
 
 export const recordQuizPlay = async (
   quizId: number,
-  payload: { score: number; totalQuestions: number }
+  payload: { score: number; totalQuestions: number; timeSpent?: number }
 ) => {
   try {
     const res = await apiClient.post(`${URI}/${quizId}/stats/play`, payload);

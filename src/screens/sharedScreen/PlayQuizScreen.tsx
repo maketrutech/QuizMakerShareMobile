@@ -21,8 +21,9 @@ import { translate } from "../../services/translateService";
 import { getAvatarSource } from "../../utils/avatarOptions";
 import { getItem, saveItem } from "../../utils/storageService";
 
-const DEFAULT_QUIZ_TIMER = 60;
-const BONUS_TIME = 5;
+const SECONDS_PER_QUESTION = 3;
+const DEFAULT_QUIZ_TIMER = 30;
+const BONUS_TIME = 0;
 const LEADERBOARD_WINDOW = 11;
 const LEADERBOARD_TOP_WINDOW = 5;
 const LEADERBOARD_AFTER_WINDOW = 10;
@@ -60,6 +61,7 @@ interface LeaderboardEntry {
   avatar?: string;
   bestScore: number;
   playCount: number;
+  bestTimeSeconds?: number | null;
   isCurrentUser?: boolean;
 }
 
@@ -75,6 +77,8 @@ export default function PlayQuizScreen() {
   const [score, setScore] = useState(0);
   const [currentPoints, setCurrentPoints] = useState<number | null>(null);
   const [pointsEarned, setPointsEarned] = useState(0);
+  const [timeSpent, setTimeSpent] = useState(0);
+  const [bestTimeSeconds, setBestTimeSeconds] = useState<number | null>(null);
   const [timer, setTimer] = useState(DEFAULT_QUIZ_TIMER);
   const [initialTimer, setInitialTimer] = useState(DEFAULT_QUIZ_TIMER);
   const [selectedCorrect, setSelectedCorrect] = useState<boolean | null>(null);
@@ -200,7 +204,7 @@ export default function PlayQuizScreen() {
         loadQuizById(quizId),
         getItem<any>("userData"),
       ]);
-      const totalTimer = data?.timerSeconds || (data?.questions?.length ? data.questions.length * 15 : DEFAULT_QUIZ_TIMER);
+      const totalTimer = data?.questions?.length ? data.questions.length * SECONDS_PER_QUESTION : (data?.timerSeconds || DEFAULT_QUIZ_TIMER);
       setQuiz(data);
       setIsLiked(Boolean(data?.userStats?.isLiked));
       setCurrentPoints(
@@ -249,14 +253,19 @@ export default function PlayQuizScreen() {
 
     const syncResultAndLeaderboard = async () => {
       setDidSubmitResult(true);
+      const computedTimeSpent = Math.max(0, initialTimer - timer);
+      setTimeSpent(computedTimeSpent);
+
       const result = await recordQuizPlay(quiz.id, {
         score,
         totalQuestions: quiz.questions.length,
+        timeSpent: computedTimeSpent,
       });
 
       const updatedPoints = result?.data?.totalPoints;
       const earnedPoints = Number(result?.data?.pointsEarned || 0);
       setPointsEarned(earnedPoints);
+      setBestTimeSeconds(result?.data?.bestTimeSeconds ?? computedTimeSpent);
 
       if (typeof updatedPoints === "number") {
         setCurrentPoints(updatedPoints);
@@ -370,6 +379,8 @@ export default function PlayQuizScreen() {
     setSelectedCorrect(null);
     setScore(0);
     setPointsEarned(0);
+    setTimeSpent(0);
+    setBestTimeSeconds(null);
     setTimer(initialTimer);
     setShowResult(false);
     setDidSubmitResult(false);
@@ -400,13 +411,18 @@ export default function PlayQuizScreen() {
           {item.username}
           {item.isCurrentUser ? ` • ${translate("playQuiz.you")}` : ""}
         </Text>
-        <Text style={styles.leaderboardMeta}>
-          {translate("playQuiz.best_score")}: {item.bestScore}/{quiz.questions.length}
-        </Text>
+        <View style={styles.leaderboardStatsInline}>
+          <View style={styles.leaderboardMiniBadge}>
+            <Text style={styles.leaderboardMiniBadgeText}>🎯 {item.bestScore}/{quiz.questions.length}</Text>
+          </View>
+          <View style={[styles.leaderboardMiniBadge, styles.leaderboardTimeBadge]}>
+            <Text style={[styles.leaderboardMiniBadgeText, styles.leaderboardTimeBadgeText]}>⏱️ {item.bestTimeSeconds ?? 0}s</Text>
+          </View>
+        </View>
       </View>
 
       <View style={styles.leaderboardScoreBadge}>
-        <Text style={styles.leaderboardScoreText}>{item.bestScore}/{quiz.questions.length}</Text>
+        <Text style={styles.leaderboardScoreText}>#{item.rank}</Text>
       </View>
     </View>
   );
@@ -442,7 +458,27 @@ export default function PlayQuizScreen() {
           <View style={styles.resultContainer}>
             <Text style={styles.resultEyebrow}>{translate("playQuiz.completed")}</Text>
             <Text style={styles.resultTitle}>{translate("playQuiz.finished")}</Text>
-            <Text style={styles.resultScore}>{translate("playQuiz.score")}: {score}/{quiz.questions.length}</Text>
+
+            <View style={styles.resultStatsRow}>
+              <View style={[styles.resultStatCard, styles.resultScoreCard]}>
+                <Text style={styles.resultStatLabel}>🎯 {translate("playQuiz.score")}</Text>
+                <Text style={styles.resultScore}>{score}/{quiz.questions.length}</Text>
+                <Text style={styles.resultStatHint}>
+                  {Math.round((score / Math.max(quiz.questions.length, 1)) * 100)}% success
+                </Text>
+              </View>
+
+              <View style={[styles.resultStatCard, styles.resultTimeCard]}>
+                <Text style={styles.resultStatLabel}>
+                  ⏱️ {translate("points.time_spent") === "points.time_spent" ? "Time spent" : translate("points.time_spent")}
+                </Text>
+                <Text style={styles.resultTime}>{timeSpent}s</Text>
+                <Text style={styles.resultStatHint}>
+                  {bestTimeSeconds ? `Best ${bestTimeSeconds}s` : "Nice run!"}
+                </Text>
+              </View>
+            </View>
+
             {pointsEarned > 0 ? (
               <View style={styles.pointsEarnedBadge}>
                 <Text style={styles.pointsEarnedText}>{translate("points.earned")}: +{pointsEarned} {translate("points.unit")}</Text>
@@ -697,10 +733,56 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     marginBottom: 10,
   },
-  resultScore: {
-    fontSize: 18,
+  resultStatsRow: {
+    width: "100%",
+    flexDirection: "row",
+    gap: 12,
+    marginBottom: 12,
+  },
+  resultStatCard: {
+    flex: 1,
+    borderRadius: 18,
+    paddingVertical: 14,
+    paddingHorizontal: 12,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    minHeight: 104,
+  },
+  resultScoreCard: {
+    backgroundColor: `${theme.success}14`,
+    borderColor: `${theme.success}55`,
+  },
+  resultTimeCard: {
+    backgroundColor: `${theme.primary}12`,
+    borderColor: `${theme.primary}45`,
+  },
+  resultStatLabel: {
+    fontSize: 12,
     color: theme.textMuted,
-    marginBottom: 10,
+    fontWeight: "800",
+    textAlign: "center",
+    marginBottom: 6,
+    textTransform: "uppercase",
+  },
+  resultScore: {
+    fontSize: 28,
+    color: theme.success,
+    fontWeight: "900",
+    marginBottom: 4,
+  },
+  resultTime: {
+    fontSize: 28,
+    color: theme.primary,
+    fontWeight: "900",
+    marginBottom: 4,
+    textAlign: "center",
+  },
+  resultStatHint: {
+    fontSize: 12,
+    color: theme.textMuted,
+    fontWeight: "700",
+    textAlign: "center",
   },
   pointsEarnedBadge: {
     backgroundColor: `${theme.success}18`,
@@ -808,11 +890,32 @@ const styles = StyleSheet.create({
     color: theme.black,
     fontSize: 15,
     fontWeight: "800",
+    marginBottom: 6,
   },
-  leaderboardMeta: {
-    color: theme.textMuted,
-    fontSize: 12,
-    marginTop: 2,
+  leaderboardStatsInline: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6,
+  },
+  leaderboardMiniBadge: {
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    backgroundColor: `${theme.success}16`,
+    borderWidth: 1,
+    borderColor: `${theme.success}44`,
+  },
+  leaderboardTimeBadge: {
+    backgroundColor: `${theme.primary}12`,
+    borderColor: `${theme.primary}44`,
+  },
+  leaderboardMiniBadgeText: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: theme.success,
+  },
+  leaderboardTimeBadgeText: {
+    color: theme.primary,
   },
   leaderboardScoreBadge: {
     borderRadius: 999,
@@ -821,6 +924,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 8,
     backgroundColor: theme.surface,
+    minWidth: 48,
+    alignItems: "center",
   },
   leaderboardScoreText: {
     color: theme.success,

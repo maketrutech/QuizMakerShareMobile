@@ -5,10 +5,11 @@ import colors from "../../styles/theme";
 import { getItem, removeItem } from "../../utils/storageService";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import GlassHeader from "../../components/GlassHeader";
-import { translate } from "../../services/translateService";
+import { translate, useTranslationVersion } from "../../services/translateService";
 import { getAvatarSource } from "../../utils/avatarOptions";
 
 export default function ProfileScreen() {
+  useTranslationVersion();
   const navigation = useNavigation<any>();
   const [profile, setProfile] = useState({
     username: "",

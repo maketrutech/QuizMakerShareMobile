@@ -18,6 +18,7 @@ type PlayerItem = {
   avatar?: string;
   bestScore: number;
   playCount: number;
+  bestTimeSeconds?: number | null;
 };
 
 export default function QuizPlayersLeaderboardScreen({ navigation, route }: any) {
@@ -100,9 +101,16 @@ export default function QuizPlayersLeaderboardScreen({ navigation, route }: any)
 
               <View style={styles.textWrap}>
                 <Text style={styles.name}>{item.username}</Text>
-                <Text style={styles.meta}>
-                  {translate("myQuiz.best_score")}: {item.bestScore}{questionCount ? `/${questionCount}` : ""}
-                </Text>
+                <View style={styles.badgesRow}>
+                  <View style={styles.scoreBadge}>
+                    <Text style={styles.scoreBadgeText}>
+                      🎯 {item.bestScore}{questionCount ? `/${questionCount}` : ""}
+                    </Text>
+                  </View>
+                  <View style={styles.timeBadge}>
+                    <Text style={styles.timeBadgeText}>⏱️ {item.bestTimeSeconds ?? 0}s</Text>
+                  </View>
+                </View>
               </View>
             </View>
           )}
@@ -173,10 +181,37 @@ const styles = StyleSheet.create({
     color: theme.black,
     fontSize: 17,
     fontWeight: "800",
-    marginBottom: 4,
+    marginBottom: 6,
   },
-  meta: {
-    color: theme.textMuted,
-    fontSize: 13,
+  badgesRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  scoreBadge: {
+    backgroundColor: `${theme.success}16`,
+    borderColor: `${theme.success}40`,
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  scoreBadgeText: {
+    color: theme.success,
+    fontSize: 12,
+    fontWeight: "800",
+  },
+  timeBadge: {
+    backgroundColor: `${theme.primary}12`,
+    borderColor: `${theme.primary}40`,
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  timeBadgeText: {
+    color: theme.primary,
+    fontSize: 12,
+    fontWeight: "800",
   },
 });

@@ -3,26 +3,50 @@ import { OneSignal } from "react-native-onesignal";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import AppNavigator from "./src/navigation/AppNavigator";
 import LoadingScreen from "./src/screens/LoadingScreen";
-import { loadTranslations } from "./src/services/translateService";
+import { loadTranslations, useTranslationVersion } from "./src/services/translateService";
 import { configureGoogleSignIn } from "./src/services/googleAuthService";
-import { saveItem } from "./src/utils/storageService";
+import { syncPushToken } from "./src/services/userService";
+import { getItem, saveItem } from "./src/utils/storageService";
 
 export default function App() {
   const [ready, setReady] = useState(false);
+  useTranslationVersion();
 
   useEffect(() => {
     OneSignal.initialize("ad0fddf5-1bdb-46dd-93c5-b8e3c0003585");
     OneSignal.Debug.setLogLevel(6);
     OneSignal.Notifications.requestPermission(true);
 
+    const persistPushToken = async (token: string | null) => {
+      if (!token) {
+        return;
+      }
+
+      console.log("Current User Push Token:", token);
+      await saveItem("pushToken", token);
+
+      const userData: any = await getItem("userData");
+      if (userData?.user?.id && token !== userData?.user?.token_phone) {
+        try {
+          await syncPushToken(Number(userData.user.id), token);
+          await saveItem("userData", {
+            ...userData,
+            user: {
+              ...userData.user,
+              token_phone: token,
+            },
+          });
+        } catch (error) {
+          console.log("Push token sync failed:", error);
+        }
+      }
+    };
+
     const bootstrapApp = async () => {
       configureGoogleSignIn();
 
       const currentToken = await OneSignal.User.pushSubscription.getTokenAsync();
-      if (currentToken) {
-        console.log("Current User Push Token:", currentToken);
-        saveItem("pushToken", currentToken);
-      }
+      await persistPushToken(currentToken);
 
       await loadTranslations();
       setReady(true);
@@ -35,7 +59,7 @@ export default function App() {
       const newToken = await OneSignal.User.pushSubscription.getTokenAsync();
       if (newToken) {
         console.log("New User Push Token:", newToken);
-        saveItem("pushToken", newToken);
+        await persistPushToken(newToken);
       }
     };
 

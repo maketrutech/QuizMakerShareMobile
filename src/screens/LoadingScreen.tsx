@@ -2,9 +2,11 @@ import React from "react";
 import { View, ActivityIndicator, Text, StyleSheet } from "react-native";
 import LinearGradient from "react-native-linear-gradient";
 import theme from "../styles/theme";
-import { translate } from "../services/translateService";
+import { translate, useTranslationVersion } from "../services/translateService";
 
 export default function LoadingScreen() {
+  useTranslationVersion();
+
   return (
     <LinearGradient
       colors={[theme.primary, "#b6a6ff", "#ffd6ea"]}

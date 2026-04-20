@@ -9,7 +9,7 @@ import {
 } from "react-native";
 import LinearGradient from "react-native-linear-gradient";
 import theme from "../styles/theme";
-import { translate } from "../services/translateService";
+import { translate, useTranslationVersion } from "../services/translateService";
 
 type AuthShellProps = {
   title: string;
@@ -24,6 +24,8 @@ export default function AuthShell({
   badge = translate("common.app_name"),
   children,
 }: AuthShellProps) {
+  useTranslationVersion();
+
   return (
     <KeyboardAvoidingView
       style={styles.container}

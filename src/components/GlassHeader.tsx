@@ -11,7 +11,7 @@ import { BlurView } from "@react-native-community/blur";
 import { FontAwesomeFreeSolid } from "@react-native-vector-icons/fontawesome-free-solid";
 import { useFocusEffect } from "@react-navigation/native";
 import theme from "../styles/theme";
-import { translate } from "../services/translateService";
+import { translate, useTranslationVersion } from "../services/translateService";
 import { getItem } from "../utils/storageService";
 
 type GlassHeaderProps = {
@@ -35,6 +35,7 @@ export default function GlassHeader({
   onBackPress,
   points,
 }: GlassHeaderProps) {
+  useTranslationVersion();
   const [storedPoints, setStoredPoints] = useState<number | null>(null);
 
   useFocusEffect(

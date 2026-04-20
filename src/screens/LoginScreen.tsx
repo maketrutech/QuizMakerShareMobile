@@ -51,9 +51,11 @@ export default function LoginScreen({ navigation }: any) {
 
     setLoading(true);
     try {
+      const pushToken = await getItem<string>("pushToken");
       const data = await login({
         login: identifier,
         password,
+        tokenPhone: pushToken,
       });
 
       await saveItem("userData", data);

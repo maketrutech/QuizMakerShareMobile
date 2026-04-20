@@ -5,6 +5,7 @@ import HomeScreen from "../screens/HomeScreen";
 import RegisterScreen from "../screens/RegisterScreen";
 import LoginScreen from "../screens/LoginScreen";
 import LoadingScreen from "../screens/LoadingScreen";
+import LanguageSelectionScreen from "../screens/LanguageSelectionScreen";
 import TabNavigator from "./TabNavigator";
 import theme from "../styles/theme";
 import { getItem } from "../utils/storageService";
@@ -25,16 +26,25 @@ const authScreenOptions = {
 export default function AppNavigator() {
   const [loading, setLoading] = useState(true);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [hasCompletedLanguageSelection, setHasCompletedLanguageSelection] = useState(false);
 
   useEffect(() => {
     const checkAuth = async () => {
       const userData: any = await getItem("userData");
+      const languageSelectionDone = await getItem<boolean>("hasCompletedLanguageSelection");
+
+      setHasCompletedLanguageSelection(languageSelectionDone === true);
+
       if (userData?.token) {
         const validToken = await checkToken();
         validToken ? setIsLoggedIn(true) : setIsLoggedIn(false);
+      } else {
+        setIsLoggedIn(false);
       }
+
       setLoading(false);
     };
+
     checkAuth();
   }, []);
 
@@ -42,11 +52,21 @@ export default function AppNavigator() {
     return <LoadingScreen />;
   }
 
+  const initialRouteName = hasCompletedLanguageSelection
+    ? (isLoggedIn ? "MainApp" : "Home")
+    : "LanguageSelection";
+
   return (
     <NavigationContainer>
       <Stack.Navigator
-        initialRouteName={isLoggedIn ? "MainApp" : "Home"}
+        initialRouteName={initialRouteName}
       >
+        <Stack.Screen
+          name="LanguageSelection"
+          component={LanguageSelectionScreen}
+          initialParams={{ destination: isLoggedIn ? "MainApp" : "Home" }}
+          options={{ headerShown: false }}
+        />
         <Stack.Screen
           name="Home"
           component={HomeScreen}

@@ -2,11 +2,13 @@ import React from "react";
 import { View, Image, StyleSheet, Dimensions, Text, TouchableOpacity } from "react-native";
 import LinearGradient from "react-native-linear-gradient";
 import theme from "../styles/theme";
-import { translate } from "../services/translateService";
+import { translate, useTranslationVersion } from "../services/translateService";
 
 const { width } = Dimensions.get("window");
 
 export default function HomeScreen({ navigation }: any) {
+  useTranslationVersion();
+
   return (
     <LinearGradient
       colors={["#8f7cff", "#b6a6ff", "#ffd2e6"]}

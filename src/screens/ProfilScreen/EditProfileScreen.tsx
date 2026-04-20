@@ -14,7 +14,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import GlassHeader from "../../components/GlassHeader";
 import AppDialog from "../../components/AppDialog";
 import theme from "../../styles/theme";
-import { translate } from "../../services/translateService";
+import { setAppLanguage, translate, useTranslationVersion } from "../../services/translateService";
 import { getItem, saveItem } from "../../utils/storageService";
 import { emailRegex, passwordRegex, usernameRegex } from "../../utils/validationRegex";
 import { avatarNames, getAvatarSource } from "../../utils/avatarOptions";
@@ -27,10 +27,20 @@ type StoredUserData = {
     username: string;
     email: string;
     avatar?: string;
+    language?: string;
   };
 };
 
+const LANGUAGE_OPTIONS = [
+  { code: "en", labelKey: "language.option.en", fallback: "English" },
+  { code: "fr", labelKey: "language.option.fr", fallback: "Français" },
+  { code: "es", labelKey: "language.option.es", fallback: "Español" },
+  { code: "hi", labelKey: "language.option.hi", fallback: "हिन्दी" },
+  { code: "ar", labelKey: "language.option.ar", fallback: "العربية" },
+];
+
 export default function EditProfileScreen({ navigation }: any) {
+  useTranslationVersion();
   const [userData, setUserData] = useState<StoredUserData | null>(null);
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
@@ -38,6 +48,8 @@ export default function EditProfileScreen({ navigation }: any) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [avatarDialogVisible, setAvatarDialogVisible] = useState(false);
+  const [languageDialogVisible, setLanguageDialogVisible] = useState(false);
+  const [language, setLanguage] = useState("en");
   const [passwordDialogVisible, setPasswordDialogVisible] = useState(false);
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -58,6 +70,7 @@ export default function EditProfileScreen({ navigation }: any) {
       setUsername(stored.user.username || "");
       setEmail(stored.user.email || "");
       setAvatar(stored.user.avatar || "avatar1");
+      setLanguage(stored.user.language || "en");
       setLoading(false);
     };
 
@@ -86,6 +99,7 @@ export default function EditProfileScreen({ navigation }: any) {
         username: username.trim(),
         email: email.trim().toLowerCase(),
         avatar,
+        language,
       });
 
       const nextUserData = {
@@ -97,6 +111,8 @@ export default function EditProfileScreen({ navigation }: any) {
       };
 
       await saveItem("userData", nextUserData);
+      await saveItem("selectedLanguage", language);
+      await setAppLanguage(language);
       setUserData(nextUserData);
       Alert.alert(
         translate("common.success"),
@@ -199,6 +215,12 @@ export default function EditProfileScreen({ navigation }: any) {
             keyboardType="email-address"
           />
 
+          <TouchableOpacity style={styles.secondaryButton} onPress={() => setLanguageDialogVisible(true)}>
+            <Text style={styles.secondaryButtonText}>
+              {translate("profile.language") === "profile.language" ? "Language" : translate("profile.language")}: {(translate(LANGUAGE_OPTIONS.find((item) => item.code === language)?.labelKey) !== LANGUAGE_OPTIONS.find((item) => item.code === language)?.labelKey ? translate(LANGUAGE_OPTIONS.find((item) => item.code === language)?.labelKey) : LANGUAGE_OPTIONS.find((item) => item.code === language)?.fallback) || "English"}
+            </Text>
+          </TouchableOpacity>
+
           <TouchableOpacity style={styles.secondaryButton} onPress={() => setPasswordDialogVisible(true)}>
             <Text style={styles.secondaryButtonText}>{translate("profile.change_password")}</Text>
           </TouchableOpacity>
@@ -232,6 +254,33 @@ export default function EditProfileScreen({ navigation }: any) {
               >
                 <Image source={getAvatarSource(item)} style={styles.avatarOptionImage} />
                 <Text style={[styles.avatarOptionText, isSelected && styles.avatarOptionTextSelected]}>{item}</Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      </AppDialog>
+
+      <AppDialog
+        visible={languageDialogVisible}
+        title={translate("profile.language") === "profile.language" ? "Choose language" : translate("profile.language")}
+        subtitle={translate("profile.language_subtitle") === "profile.language_subtitle" ? "Select your app language" : translate("profile.language_subtitle")}
+        onClose={() => setLanguageDialogVisible(false)}
+      >
+        <View style={styles.languageList}>
+          {LANGUAGE_OPTIONS.map((item) => {
+            const isSelected = language === item.code;
+            return (
+              <TouchableOpacity
+                key={item.code}
+                style={[styles.languageOption, isSelected && styles.languageOptionSelected]}
+                onPress={() => {
+                  setLanguage(item.code);
+                  setLanguageDialogVisible(false);
+                }}
+              >
+                <Text style={[styles.languageOptionText, isSelected && styles.languageOptionTextSelected]}>
+                  {translate(item.labelKey) !== item.labelKey ? translate(item.labelKey) : item.fallback}
+                </Text>
               </TouchableOpacity>
             );
           })}
@@ -414,6 +463,29 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
     justifyContent: "space-between",
     gap: 10,
+  },
+  languageList: {
+    gap: 10,
+  },
+  languageOption: {
+    borderWidth: 1,
+    borderColor: theme.border,
+    borderRadius: 14,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    backgroundColor: theme.white,
+  },
+  languageOptionSelected: {
+    borderColor: theme.primary,
+    backgroundColor: "#efeaff",
+  },
+  languageOptionText: {
+    color: theme.black,
+    fontSize: 15,
+    fontWeight: "700",
+  },
+  languageOptionTextSelected: {
+    color: theme.primary,
   },
   avatarOption: {
     width: "30%",
