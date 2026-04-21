@@ -8,6 +8,8 @@ export type RootStackParamList = {
 
 export type HomeStackParamList = {
   HomeConnectedMain: undefined;
+  CreateQuizScreen: undefined;
+  MultiplayerQuizScreen: undefined;
 };
 
 export type ProfilStackParamList = {
