@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   Image,
   ScrollView,
   StyleSheet,
@@ -11,11 +10,11 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import GlassHeader from "../../components/GlassHeader";
+import useAppAlert from "../../components/useAppAlert";
 import theme from "../../styles/theme";
 import commonStyles from "../../styles/commonStyles";
 import { translate, useTranslationVersion, getCurrentLanguage } from "../../services/translateService";
 import { getItem } from "../../utils/storageService";
-import { loadThemes } from "../../services/themeService";
 import { getCountryFlagSource } from "../../services/countryService";
 import { getAvatarSource } from "../../utils/avatarOptions";
 import {
@@ -28,13 +27,9 @@ import {
   getPresenterImageUrl,
   joinMultiplayerMatchmaking,
   leaveMultiplayerRoom,
+  submitMultiplayerThemeVote,
   submitMultiplayerAnswer,
 } from "../../services/multiplayerService";
-
-type ThemeItem = {
-  id: number;
-  name: string;
-};
 
 type StoredUserData = {
   token: string;
@@ -44,20 +39,36 @@ type StoredUserData = {
   };
 };
 
-const EMPTY_PLAYER_SLOTS = Array.from({ length: 4 }, (_, index) => ({
+const EMPTY_PLAYER_SLOTS = Array.from({ length: 2 }, (_, index) => ({
   id: `empty-${index}`,
 }));
 
+const PLAYER_SLOT_LAYOUT = {
+  2: ["topLeft", "topRight"],
+} as const;
+
 export default function MultiplayerQuizScreen({ navigation }: any) {
   useTranslationVersion();
-  const [themes, setThemes] = useState<ThemeItem[]>([]);
-  const [themesLoading, setThemesLoading] = useState(true);
-  const [selectedThemeId, setSelectedThemeId] = useState<number | null>(null);
+  const tr = (key: string, fallback: string, params?: Record<string, string | number>) => {
+    let value = translate(key);
+    if (value === key) {
+      value = fallback;
+    }
+
+    if (params) {
+      Object.entries(params).forEach(([name, paramValue]) => {
+        value = value.replace(new RegExp(`\\{${name}\\}`, "g"), String(paramValue));
+      });
+    }
+
+    return value;
+  };
+
   const [joining, setJoining] = useState(false);
   const [roomState, setRoomState] = useState<MultiplayerRoomState | null>(null);
   const [currentQuestion, setCurrentQuestion] = useState<MultiplayerQuestion | null>(null);
   const [presenterState, setPresenterState] = useState<"idle" | "speaking">("idle");
-  const [statusText, setStatusText] = useState("Choose a theme to start matchmaking.");
+  const [statusText, setStatusText] = useState(tr("multiplayer.initial_prompt", "Tap start matchmaking."));
   const [deadlineAt, setDeadlineAt] = useState<number | null>(null);
   const [timeLeft, setTimeLeft] = useState<number>(0);
   const [currentUserId, setCurrentUserId] = useState<number | null>(null);
@@ -65,22 +76,15 @@ export default function MultiplayerQuizScreen({ navigation }: any) {
   const [submittingAnswerId, setSubmittingAnswerId] = useState<number | null>(null);
   const [presenterImageFailed, setPresenterImageFailed] = useState(false);
   const timeoutRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const { showAppAlert, appAlertDialog } = useAppAlert(translate("common.ok") === "common.ok" ? "OK" : translate("common.ok"));
 
   useEffect(() => {
     const loadInitialData = async () => {
       try {
-        const [themeResponse, stored] = await Promise.all([
-          loadThemes(1, 100, ""),
-          getItem<StoredUserData>("userData"),
-        ]);
-
-        setThemes(themeResponse?.data || []);
-        setSelectedThemeId(themeResponse?.data?.[0]?.id || null);
+        const stored = await getItem<StoredUserData>("userData");
         setCurrentUserId(typeof stored?.user?.id === "number" ? stored.user.id : null);
       } catch (error) {
-        Alert.alert(translate("common.error"), translate("themeBrowse.empty"));
-      } finally {
-        setThemesLoading(false);
+        showAppAlert(translate("common.error"), translate("themeBrowse.empty"));
       }
     };
 
@@ -140,6 +144,8 @@ export default function MultiplayerQuizScreen({ navigation }: any) {
     socket.removeAllListeners("answer_result");
     socket.removeAllListeners("score_updated");
     socket.removeAllListeners("game_finished");
+    socket.removeAllListeners("multiplayer:theme_options");
+    socket.removeAllListeners("multiplayer:theme_selected");
     socket.removeAllListeners("multiplayer:error");
 
     socket.on("multiplayer:room_state", (payload: MultiplayerRoomState) => {
@@ -150,19 +156,46 @@ export default function MultiplayerQuizScreen({ navigation }: any) {
       if (payload.phase === "matchmaking") {
         const waitingCount = payload.waitingCount || 1;
         const requiredCount = payload.requiredCount || 2;
-        setStatusText(`Waiting for players ${waitingCount}/${requiredCount}`);
+        setStatusText(tr("multiplayer.waiting_for_players", "Waiting for players {waiting}/{required}", {
+          waiting: waitingCount,
+          required: requiredCount,
+        }));
+      } else if (payload.phase === "theme-voting") {
+        setStatusText(tr("multiplayer.players_found", "Players found. Vote for a theme."));
       } else if (payload.phase === "question-open") {
-        setStatusText("Buzz first to answer.");
+        setStatusText(tr("multiplayer.phase_question_open", "Buzz first to answer."));
       } else if (payload.phase === "buzz-locked") {
-        setStatusText("One player is answering now.");
+        setStatusText(tr("multiplayer.phase_buzz_locked", "One player is answering now."));
       } else if (payload.phase === "finished") {
-        setStatusText("Match finished.");
+        setStatusText(tr("multiplayer.phase_finished", "Match finished."));
       }
     });
 
     socket.on("multiplayer:match_found", () => {
-      setStatusText("Match found. Starting round...");
+      setStatusText(tr("multiplayer.match_found", "Match found. Vote for a theme to start."));
       setJoining(false);
+    });
+
+    socket.on("multiplayer:theme_options", (payload: { voteDeadlineAt?: number; themes: Array<{ id: number; name: string }> }) => {
+      setRoomState((current) => {
+        if (!current) {
+          return current;
+        }
+
+        return {
+          ...current,
+          phase: "theme-voting",
+          themeOptions: payload.themes,
+          themeVoteDeadlineAt: payload.voteDeadlineAt || null,
+        };
+      });
+      setStatusText(tr("multiplayer.vote_theme_prompt", "Vote for one theme."));
+    });
+
+    socket.on("multiplayer:theme_selected", (payload: { themeName?: string }) => {
+      setStatusText(tr("multiplayer.theme_selected", "Theme selected: {theme}. Starting game...", {
+        theme: payload?.themeName || tr("multiplayer.theme_generic", "Theme"),
+      }));
     });
 
     socket.on("question_open", (payload: { presenterState?: "idle" | "speaking"; question: MultiplayerQuestion; questionIndex: number; totalQuestions: number }) => {
@@ -170,7 +203,10 @@ export default function MultiplayerQuizScreen({ navigation }: any) {
       setCurrentQuestion(payload.question);
       setDeadlineAt(null);
       setSubmittingAnswerId(null);
-      setStatusText(`Question ${payload.questionIndex}/${payload.totalQuestions}`);
+      setStatusText(tr("multiplayer.question_count", "Question {index}/{total}", {
+        index: payload.questionIndex,
+        total: payload.totalQuestions,
+      }));
     });
 
     socket.on("locked", (payload: { lockedSocketId: string; answerDeadlineAt?: number; presenterState?: "idle" | "speaking" }) => {
@@ -179,9 +215,9 @@ export default function MultiplayerQuizScreen({ navigation }: any) {
       setRoomState((current) => current ? { ...current, lockedSocketId: payload.lockedSocketId } : current);
 
       if (payload.lockedSocketId === socket.id) {
-        setStatusText("You buzzed first. Answer now.");
+        setStatusText(tr("multiplayer.you_buzzed_first", "You buzzed first. Answer now."));
       } else {
-        setStatusText("Another player buzzed first.");
+        setStatusText(tr("multiplayer.other_buzzed_first", "Another player buzzed first."));
       }
     });
 
@@ -190,7 +226,7 @@ export default function MultiplayerQuizScreen({ navigation }: any) {
       setDeadlineAt(null);
       setSubmittingAnswerId(null);
       setRoomState((current) => current ? { ...current, lockedSocketId: null } : current);
-      setStatusText("Buzzer reset. Buzz again.");
+      setStatusText(tr("multiplayer.buzzer_reset", "Buzzer reset. Buzz again."));
     });
 
     socket.on("answer_result", (payload: { userId?: number | null; result: string }) => {
@@ -199,11 +235,19 @@ export default function MultiplayerQuizScreen({ navigation }: any) {
       setSubmittingAnswerId(null);
 
       if (payload.result === "correct") {
-        setStatusText(payload.userId === currentUserId ? "Correct answer!" : "A player answered correctly.");
+        setStatusText(
+          payload.userId === currentUserId
+            ? tr("multiplayer.you_answered_correct", "Correct answer!")
+            : tr("multiplayer.player_answered_correct", "A player answered correctly.")
+        );
       } else if (payload.result === "wrong" || payload.result === "timeout" || payload.result === "disconnect-timeout") {
-        setStatusText(payload.userId === currentUserId ? "Penalty applied. Wait for the reset." : "Wrong answer. Buzzer reopening.");
+        setStatusText(
+          payload.userId === currentUserId
+            ? tr("multiplayer.you_answered_wrong", "Penalty applied. Wait for the reset.")
+            : tr("multiplayer.player_answered_wrong", "Wrong answer. Buzzer reopening.")
+        );
       } else if (payload.result === "reveal") {
-        setStatusText("No players left for this question. Revealing answer.");
+        setStatusText(tr("multiplayer.no_players_left", "No players left for this question. Revealing answer."));
       }
     });
 
@@ -214,25 +258,34 @@ export default function MultiplayerQuizScreen({ navigation }: any) {
     socket.on("game_finished", () => {
       setPresenterState("idle");
       setDeadlineAt(null);
-      setStatusText("Game finished. See final scores below.");
+      setStatusText(tr("multiplayer.game_finished", "Game finished. See final scores below."));
     });
 
     socket.on("multiplayer:error", (payload: { message?: string }) => {
-      const message = payload?.message || "Unable to continue multiplayer match.";
+      const message = payload?.message || tr("multiplayer.error_continue", "Unable to continue multiplayer match.");
       setJoining(false);
       setStatusText(message);
-      Alert.alert(translate("common.error"), message);
+
+      const shouldGoBackAfterClose = /timed out|no player found|no players found/i.test(message);
+      if (shouldGoBackAfterClose) {
+        showAppAlert(translate("common.error"), message, () => {
+          handleBack();
+        });
+        return;
+      }
+
+      showAppAlert(translate("common.error"), message);
     });
   };
 
   const startMatchmaking = async () => {
-    if (!selectedThemeId || joining) {
+    if (joining || roomState?.phase === "matchmaking") {
       return;
     }
 
     const storedUserData = await getItem<StoredUserData>("userData");
     if (!storedUserData?.token) {
-      Alert.alert(translate("common.error"), "You must be logged in to play multiplayer.");
+      showAppAlert(translate("common.error"), tr("multiplayer.error_not_logged_in", "You must be logged in to play multiplayer."));
       return;
     }
 
@@ -242,11 +295,11 @@ export default function MultiplayerQuizScreen({ navigation }: any) {
       const socket = await connectMultiplayerSocket(storedUserData.token);
       setCurrentSocketId(socket.id || "");
       attachSocketListeners();
-      joinMultiplayerMatchmaking({ themeId: selectedThemeId, language: selectedLanguage });
-      setStatusText("Joining matchmaking...");
+      joinMultiplayerMatchmaking({ language: selectedLanguage });
+      setStatusText(tr("multiplayer.joining_matchmaking", "Joining matchmaking..."));
     } catch (error: any) {
       setJoining(false);
-      Alert.alert(translate("common.error"), error?.message || "Unable to connect to multiplayer.");
+      showAppAlert(translate("common.error"), error?.message || tr("multiplayer.error_connection", "Unable to connect to multiplayer."));
     }
   };
 
@@ -281,134 +334,225 @@ export default function MultiplayerQuizScreen({ navigation }: any) {
     [roomState]
   );
 
+  const myThemeVoteId = useMemo(() => {
+    const votes = roomState?.themeVotes || [];
+    const myVote = votes.find((item) => item.socketId === currentSocketId);
+    return myVote?.themeId || null;
+  }, [roomState, currentSocketId]);
+
+  const canVoteTheme = Boolean(roomState?.roomId && roomState?.phase === "theme-voting");
+
+  const inGamePhases = new Set(["question-open", "buzz-locked", "answer-reveal", "finished"]);
+  const isGameplay = Boolean(roomState?.roomId && roomState?.phase && inGamePhases.has(roomState.phase));
+
   const displayedPlayers = useMemo(() => {
     const activePlayers = roomState?.players || [];
-    return [...activePlayers, ...EMPTY_PLAYER_SLOTS].slice(0, 4);
+    return [...activePlayers, ...EMPTY_PLAYER_SLOTS].slice(0, 2);
+  }, [roomState]);
+
+  const positionedPlayers = useMemo(() => {
+    const activePlayers = roomState?.players || [];
+    const count = 2 as const;
+    const layout = PLAYER_SLOT_LAYOUT[count];
+
+    return activePlayers.slice(0, layout.length).map((player, index) => ({
+      player,
+      slot: layout[index],
+    }));
   }, [roomState]);
 
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.headerArea}>
         <GlassHeader
-          title={translate("home.multiplayer_title") === "home.multiplayer_title" ? "Multiplayer Quiz" : translate("home.multiplayer_title")}
+          title={translate("home.multiplayer_title") === "home.multiplayer_title" ? tr("multiplayer.screen_title", "Multiplayer Quiz") : translate("home.multiplayer_title")}
           subtitle={statusText}
           onBackPress={handleBack}
         />
       </View>
 
+      {!isGameplay ? (
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <View style={styles.presenterWrap}>
-          <Image
-            source={{ uri: getPresenterImageUrl(presenterState) }}
-            style={styles.presenterImage}
-            resizeMode="contain"
-            onError={() => setPresenterImageFailed(true)}
-          />
-          {presenterImageFailed ? <Text style={styles.presenterFallback}>Quiz Master</Text> : null}
-          {currentQuestion ? <Text style={styles.questionText}>{currentQuestion.questionText}</Text> : null}
-          {deadlineAt ? <Text style={styles.timerText}>{timeLeft}s</Text> : null}
-        </View>
+        {canVoteTheme ? (
+          <View style={[styles.playersCard, commonStyles.softCardShadow]}>
+            <Text style={styles.sectionTitle}>{tr("multiplayer.vote_theme_label", "Vote Theme")}</Text>
+            <View style={styles.themeVoteList}>
+              {(roomState?.themeOptions || []).map((item) => {
+                const isSelected = myThemeVoteId === item.id;
 
-        <View style={[styles.playersCard, commonStyles.softCardShadow]}>
-          <Text style={styles.sectionTitle}>Players</Text>
-          <View style={styles.playersGrid}>
-            {displayedPlayers.map((player: any) => {
-              const isRealPlayer = Boolean(player.userId);
-
-              return (
-                <View
-                  key={String(player.userId || player.id)}
-                  style={[styles.playerSlot, !isRealPlayer && styles.playerSlotEmpty]}
-                >
-                  {isRealPlayer ? (
-                    <>
-                      <Image source={getAvatarSource(player.avatar, player.avatarUrl)} style={styles.playerAvatar} />
-                      {player.country?.key ? (
-                        <Image source={getCountryFlagSource(player.country.flagUrl, player.country.key)} style={styles.playerFlag} />
-                      ) : null}
-                      <View style={styles.playerIdentityRow}>
-                        <Text style={styles.playerName} numberOfLines={1}>{player.username}</Text>
-                        {player.isVirtual ? (
-                          <View style={styles.botBadge}>
-                            <Text style={styles.botBadgeText}>BOT</Text>
-                          </View>
-                        ) : null}
-                      </View>
-                      <Text style={styles.playerScore}>{player.score} pts</Text>
-                    </>
-                  ) : (
-                    <>
-                      <View style={styles.emptyAvatar} />
-                      <Text style={styles.emptyText}>Waiting...</Text>
-                    </>
-                  )}
-                </View>
-              );
-            })}
+                return (
+                  <TouchableOpacity
+                    key={item.id}
+                    style={[styles.themeVoteButton, isSelected && styles.themeVoteButtonSelected]}
+                    onPress={() => submitMultiplayerThemeVote({ roomId: roomState?.roomId, themeId: item.id })}
+                    disabled={Boolean(myThemeVoteId)}
+                  >
+                    <Text style={[styles.themeVoteButtonText, isSelected && styles.themeVoteButtonTextSelected]}>{item.name}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
           </View>
-        </View>
+        ) : (
+          <>
+            {roomState ? (
+              <View style={styles.presenterWrap}>
+                <Image
+                  source={{ uri: getPresenterImageUrl(presenterState) }}
+                  style={styles.presenterImage}
+                  resizeMode="contain"
+                  onError={() => setPresenterImageFailed(true)}
+                />
+                {presenterImageFailed ? <Text style={styles.presenterFallback}>{tr("multiplayer.presenter_fallback", "Quiz Master")}</Text> : null}
+                {currentQuestion ? <Text style={styles.questionText}>{currentQuestion.questionText}</Text> : null}
+                {deadlineAt ? <Text style={styles.timerText}>{timeLeft}s</Text> : null}
+              </View>
+            ) : null}
 
-        {!roomState || roomState.phase === "matchmaking" ? (
-          <View style={[styles.matchmakingCard, commonStyles.softCardShadow]}>
-            <Text style={styles.sectionTitle}>Choose a theme</Text>
-            {themesLoading ? (
-              <ActivityIndicator color={theme.primary} />
-            ) : (
-              <View style={styles.themeChips}>
-                {themes.map((item) => {
-                  const isSelected = selectedThemeId === item.id;
+            <View style={[styles.playersCard, commonStyles.softCardShadow]}>
+              <Text style={styles.sectionTitle}>{tr("multiplayer.players_section", "Players")}</Text>
+              <View style={styles.playersGrid}>
+                {displayedPlayers.map((player: any) => {
+                  const isRealPlayer = Boolean(player.userId);
+
                   return (
-                    <TouchableOpacity
-                      key={item.id}
-                      style={[styles.themeChip, isSelected && styles.themeChipSelected]}
-                      onPress={() => setSelectedThemeId(item.id)}
+                    <View
+                      key={String(player.userId || player.id)}
+                      style={[styles.playerSlot, !isRealPlayer && styles.playerSlotEmpty]}
                     >
-                      <Text style={[styles.themeChipText, isSelected && styles.themeChipTextSelected]}>{item.name}</Text>
-                    </TouchableOpacity>
+                      {isRealPlayer ? (
+                        <>
+                          <Image source={getAvatarSource(player.avatar, player.avatarUrl)} style={styles.playerAvatar} />
+                          {player.country?.key ? (
+                            <Image source={getCountryFlagSource(player.country.flagUrl, player.country.key)} style={styles.playerFlag} />
+                          ) : null}
+                          <View style={styles.playerIdentityRow}>
+                            <Text style={styles.playerName} numberOfLines={1}>{player.username}</Text>
+                            {player.isVirtual ? (
+                              <View style={styles.botBadge}>
+                                <Text style={styles.botBadgeText}>{tr("multiplayer.bot_badge", "BOT")}</Text>
+                              </View>
+                            ) : null}
+                          </View>
+                          <Text style={styles.playerScore}>{player.score} pts</Text>
+                        </>
+                      ) : (
+                        <>
+                          <View style={styles.emptyAvatar} />
+                          <Text style={styles.emptyText}>{tr("multiplayer.waiting_status", "Waiting...")}</Text>
+                        </>
+                      )}
+                    </View>
                   );
                 })}
               </View>
-            )}
-
-            <TouchableOpacity
-              style={[styles.primaryButton, (!selectedThemeId || joining) && styles.buttonDisabled]}
-              onPress={startMatchmaking}
-              disabled={!selectedThemeId || joining}
-            >
-              {joining ? <ActivityIndicator color={theme.white} /> : <Text style={styles.primaryButtonText}>Start matchmaking</Text>}
-            </TouchableOpacity>
-          </View>
-        ) : null}
-
-        <TouchableOpacity
-          style={[styles.buzzButton, !canBuzz && styles.buttonDisabled]}
-          onPress={() => buzzMultiplayer(roomState?.roomId)}
-          disabled={!canBuzz}
-        >
-          <Text style={styles.buzzButtonText}>BUZZ</Text>
-        </TouchableOpacity>
-
-        {canAnswer && currentQuestion ? (
-          <View style={[styles.answersCard, commonStyles.softCardShadow]}>
-            <Text style={styles.sectionTitle}>Choose your answer</Text>
-            <View style={styles.answersGrid}>
-              {currentQuestion.answers.map((answer) => (
-                <TouchableOpacity
-                  key={answer.id}
-                  style={[styles.answerButton, submittingAnswerId === answer.id && styles.answerButtonActive]}
-                  disabled={submittingAnswerId !== null}
-                  onPress={() => {
-                    setSubmittingAnswerId(answer.id);
-                    submitMultiplayerAnswer({ roomId: roomState?.roomId, questionId: currentQuestion.id, answerId: answer.id });
-                  }}
-                >
-                  <Text style={styles.answerButtonText}>{answer.answerText}</Text>
-                </TouchableOpacity>
-              ))}
+              {!roomState ? (
+                <View style={styles.playersActionWrap}>
+                  <TouchableOpacity
+                    style={[styles.primaryButton, joining && styles.buttonDisabled]}
+                    onPress={startMatchmaking}
+                    disabled={joining}
+                  >
+                    {joining ? <ActivityIndicator color={theme.white} /> : <Text style={styles.primaryButtonText}>{tr("multiplayer.start_button", "Start matchmaking")}</Text>}
+                  </TouchableOpacity>
+                </View>
+              ) : null}
             </View>
-          </View>
-        ) : null}
+          </>
+        )}
+
       </ScrollView>
+      ) : (
+        <View style={styles.gameArena}>
+          {positionedPlayers.map(({ player, slot }) => {
+            const isBuzzed = roomState?.phase === "buzz-locked" && roomState?.lockedSocketId === player.socketId;
+            const slotStyle =
+              slot === "topLeft"
+                ? styles.topLeft
+                : slot === "topRight"
+                  ? styles.topRight
+                  : slot === "bottomLeft"
+                    ? styles.bottomLeft
+                    : slot === "bottomRight"
+                      ? styles.bottomRight
+                      : styles.bottomCenter;
+
+            return (
+              <View
+                key={String(player.userId || player.socketId)}
+                style={[styles.playerCornerCard, slotStyle, isBuzzed && styles.playerCornerCardBuzzed, commonStyles.softCardShadow]}
+              >
+                <Image source={getAvatarSource(player.avatar, player.avatarUrl)} style={styles.cornerAvatar} />
+                <Text style={styles.cornerName} numberOfLines={1}>{player.username}</Text>
+                <Text style={styles.cornerPts}>{player.score} pts</Text>
+              </View>
+            );
+          })}
+
+          <View style={[styles.centerGameCard, commonStyles.softCardShadow]}>
+            <View style={styles.cardGlowA} />
+            <View style={styles.cardGlowB} />
+            {canViewResponses && currentQuestion ? (
+              <View style={styles.centerStageContent}>
+                <View style={styles.questionHero}>
+                  <Text style={styles.questionEyebrow}>{tr("multiplayer.live_question_label", "Live Question")}</Text>
+                  <Text style={styles.centerGameQuestion}>{currentQuestion.questionText}</Text>
+                </View>
+                <View style={styles.answersGrid}>
+                  {currentQuestion.answers.map((answer) => (
+                    <TouchableOpacity
+                      key={answer.id}
+                      style={[styles.answerButton, submittingAnswerId === answer.id && styles.answerButtonActive]}
+                      disabled={submittingAnswerId !== null || !canAnswer}
+                      onPress={() => {
+                        setSubmittingAnswerId(answer.id);
+                        submitMultiplayerAnswer({ roomId: roomState?.roomId, questionId: currentQuestion.id, answerId: answer.id });
+                      }}
+                    >
+                      <Text style={styles.answerButtonText}>{answer.answerText}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+                {!canAnswer ? (
+                  <Text style={styles.readonlyHint}>
+                    {tr("multiplayer.waiting_for_answer", "Waiting for {player} answer...", {
+                      player: lockedPlayer?.username || tr("multiplayer.player_generic", "player"),
+                    })}
+                  </Text>
+                ) : null}
+              </View>
+            ) : (
+              <View style={styles.centerStageContent}>
+                <Image
+                  source={{ uri: getPresenterImageUrl(presenterState) }}
+                  style={styles.presenterImageGame}
+                  resizeMode="contain"
+                  onError={() => setPresenterImageFailed(true)}
+                />
+                {presenterImageFailed ? <Text style={styles.presenterFallback}>{tr("multiplayer.presenter_fallback", "Quiz Master")}</Text> : null}
+                <View style={styles.questionHero}>
+                  <Text style={styles.questionEyebrow}>{tr("multiplayer.round_question_label", "Round Question")}</Text>
+                  {currentQuestion ? (
+                    <Text style={styles.centerGameQuestion}>{currentQuestion.questionText}</Text>
+                  ) : (
+                    <Text style={styles.centerGameQuestion}>{tr("multiplayer.get_ready", "Get ready for next question...")}</Text>
+                  )}
+                </View>
+                <TouchableOpacity
+                  style={[styles.bigBuzzButton, !canBuzz && styles.buttonDisabled]}
+                  onPress={() => buzzMultiplayer(roomState?.roomId)}
+                  disabled={!canBuzz}
+                >
+                  <Text style={styles.bigBuzzButtonText}>{tr("multiplayer.buzz_button", "BUZZ")}</Text>
+                </TouchableOpacity>
+                {deadlineAt ? <Text style={styles.timerText}>{timeLeft}s</Text> : null}
+              </View>
+            )}
+          </View>
+        </View>
+      )}
+
+      {appAlertDialog}
     </SafeAreaView>
   );
 }
@@ -426,6 +570,170 @@ const styles = StyleSheet.create({
     padding: 20,
     gap: 16,
     paddingBottom: 42,
+  },
+  gameArena: {
+    flex: 1,
+    position: "relative",
+    paddingHorizontal: 14,
+    paddingTop: 10,
+    paddingBottom: 24,
+  },
+  centerGameCard: {
+    flex: 1,
+    position: "relative",
+    overflow: "hidden",
+    marginTop: 112,
+    marginBottom: 28,
+    marginHorizontal: 0,
+    width: "100%",
+    borderRadius: 26,
+    borderWidth: 1,
+    borderColor: theme.border,
+    backgroundColor: theme.surface,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    alignSelf: "stretch",
+    justifyContent: "center",
+  },
+  centerStageContent: {
+    width: "100%",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 12,
+    zIndex: 2,
+  },
+  cardGlowA: {
+    position: "absolute",
+    top: -70,
+    right: -40,
+    width: 190,
+    height: 190,
+    borderRadius: 95,
+    backgroundColor: "#d7f4ff",
+    opacity: 0.45,
+    zIndex: 0,
+  },
+  cardGlowB: {
+    position: "absolute",
+    bottom: -80,
+    left: -50,
+    width: 210,
+    height: 210,
+    borderRadius: 105,
+    backgroundColor: "#ffe7f1",
+    opacity: 0.4,
+    zIndex: 0,
+  },
+  questionHero: {
+    width: "100%",
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "#dbe8ff",
+    backgroundColor: "#f8fbff",
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    gap: 6,
+  },
+  questionEyebrow: {
+    color: theme.primary,
+    fontSize: 12,
+    fontWeight: "900",
+    letterSpacing: 0.9,
+    textTransform: "uppercase",
+  },
+  centerGameTitle: {
+    color: theme.primary,
+    fontSize: 13,
+    fontWeight: "900",
+    textTransform: "uppercase",
+  },
+  centerGameQuestion: {
+    color: theme.black,
+    fontSize: 21,
+    fontWeight: "800",
+    textAlign: "center",
+    lineHeight: 29,
+  },
+  presenterImageGame: {
+    width: 180,
+    height: 130,
+  },
+  bigBuzzButton: {
+    minWidth: 220,
+    minHeight: 72,
+    borderRadius: 999,
+    backgroundColor: "#f1415a",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 30,
+    borderWidth: 1,
+    borderColor: "#d22b45",
+  },
+  bigBuzzButtonText: {
+    color: theme.white,
+    fontSize: 30,
+    fontWeight: "900",
+    letterSpacing: 2,
+  },
+  readonlyHint: {
+    color: theme.textMuted,
+    fontSize: 13,
+    fontWeight: "700",
+    textAlign: "center",
+  },
+  playerCornerCard: {
+    position: "absolute",
+    width: 136,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: theme.border,
+    backgroundColor: theme.surface,
+    alignItems: "center",
+    paddingVertical: 8,
+    paddingHorizontal: 8,
+    zIndex: 5,
+  },
+  playerCornerCardBuzzed: {
+    backgroundColor: "#e9fbf6",
+    borderColor: theme.success,
+  },
+  topLeft: {
+    top: 10,
+    left: 8,
+  },
+  topRight: {
+    top: 10,
+    right: 8,
+  },
+  bottomLeft: {
+    bottom: 20,
+    left: 8,
+  },
+  bottomRight: {
+    bottom: 20,
+    right: 8,
+  },
+  bottomCenter: {
+    bottom: 20,
+    left: "50%",
+    marginLeft: -68,
+  },
+  cornerAvatar: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    marginBottom: 5,
+  },
+  cornerName: {
+    color: theme.black,
+    fontSize: 12,
+    fontWeight: "800",
+  },
+  cornerPts: {
+    color: theme.primary,
+    fontSize: 12,
+    fontWeight: "800",
+    marginTop: 2,
   },
   presenterWrap: {
     alignItems: "center",
@@ -464,6 +772,36 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 12,
+  },
+  playersActionWrap: {
+    marginTop: 14,
+  },
+  themeVoteWrap: {
+    marginTop: 16,
+  },
+  themeVoteList: {
+    gap: 10,
+  },
+  themeVoteButton: {
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: theme.border,
+    backgroundColor: theme.surfaceSoft,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+  },
+  themeVoteButtonSelected: {
+    borderColor: theme.primary,
+    backgroundColor: "#efeaff",
+  },
+  themeVoteButtonText: {
+    color: theme.black,
+    fontSize: 15,
+    fontWeight: "800",
+    textAlign: "center",
+  },
+  themeVoteButtonTextSelected: {
+    color: theme.primary,
   },
   playerSlot: {
     width: "47%",
@@ -613,15 +951,22 @@ const styles = StyleSheet.create({
     padding: 18,
   },
   answersGrid: {
+    width: "100%",
     gap: 10,
   },
   answerButton: {
+    width: "100%",
     borderRadius: 16,
-    backgroundColor: theme.surfaceSoft,
+    backgroundColor: "#ffffff",
     borderWidth: 1,
-    borderColor: theme.border,
+    borderColor: "#dbe5ff",
     paddingVertical: 14,
     paddingHorizontal: 14,
+    shadowColor: "#000",
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 2,
   },
   answerButtonActive: {
     borderColor: theme.primary,

@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   Image,
   ScrollView,
   StyleSheet,
@@ -13,6 +12,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import GlassHeader from "../../components/GlassHeader";
 import AppDialog from "../../components/AppDialog";
+import useAppAlert from "../../components/useAppAlert";
 import { CountryItem, getCountries, getCountryFlagSource } from "../../services/countryService";
 import theme from "../../styles/theme";
 import { setAppLanguage, translate, useTranslationVersion } from "../../services/translateService";
@@ -57,26 +57,30 @@ export default function EditProfileScreen({ navigation }: any) {
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [passwordLoading, setPasswordLoading] = useState(false);
+  const { showAppAlert, appAlertDialog } = useAppAlert(translate("common.ok") === "common.ok" ? "OK" : translate("common.ok"));
 
   useEffect(() => {
     const loadProfile = async () => {
-      const [stored, countryList] = await Promise.all([
+      const [stored, countryList, savedLanguage] = await Promise.all([
         getItem<StoredUserData>("userData"),
         getCountries(),
+        getItem<string>("selectedLanguage"),
       ]);
 
       if (!stored?.user) {
-        Alert.alert(translate("common.error"), translate("profile.error.load_failed"));
+        showAppAlert(translate("common.error"), translate("profile.error.load_failed"));
         navigation.goBack();
         return;
       }
+
+      const initialLanguage = (savedLanguage || stored.user.language || "en").toLowerCase();
 
       setUserData(stored);
       setCountries(countryList);
       setUsername(stored.user.username || "");
       setEmail(stored.user.email || "");
       setAvatar(stored.user.avatar || "avatar1");
-      setLanguage(stored.user.language || "en");
+      setLanguage(initialLanguage);
       setCountryId(typeof stored.user.countryId === "number" ? stored.user.countryId : null);
       setSelectedCountry(stored.user.country || countryList.find((item) => item.id === stored.user.countryId) || null);
       setLoading(false);
@@ -102,17 +106,17 @@ export default function EditProfileScreen({ navigation }: any) {
 
   const handleSaveProfile = async () => {
     if (!userData?.user?.id) {
-      Alert.alert(translate("common.error"), translate("profile.error.load_failed"));
+      showAppAlert(translate("common.error"), translate("profile.error.load_failed"));
       return;
     }
 
     if (!usernameRegex.test(username.trim())) {
-      Alert.alert(translate("common.error"), translate("profile.error.invalid_username"));
+      showAppAlert(translate("common.error"), translate("profile.error.invalid_username"));
       return;
     }
 
     if (!emailRegex.test(email.trim())) {
-      Alert.alert(translate("common.error"), translate("profile.error.invalid_email"));
+      showAppAlert(translate("common.error"), translate("profile.error.invalid_email"));
       return;
     }
 
@@ -131,6 +135,7 @@ export default function EditProfileScreen({ navigation }: any) {
         user: {
           ...userData.user,
           ...(response?.user || {}),
+          language,
         },
       };
 
@@ -138,13 +143,9 @@ export default function EditProfileScreen({ navigation }: any) {
       await saveItem("selectedLanguage", language);
       await setAppLanguage(language);
       setUserData(nextUserData);
-      Alert.alert(
-        translate("common.success"),
-        translate("profile.success.updated"),
-        [{ text: "OK", onPress: () => navigation.goBack() }]
-      );
+      showAppAlert(translate("common.success"), translate("profile.success.updated"), () => navigation.goBack());
     } catch (error: any) {
-      Alert.alert(translate("common.error"), error?.response?.data?.error || translate("profile.error.save_failed"));
+      showAppAlert(translate("common.error"), error?.response?.data?.error || translate("profile.error.save_failed"));
     } finally {
       setSaving(false);
     }
@@ -152,17 +153,17 @@ export default function EditProfileScreen({ navigation }: any) {
 
   const handleChangePassword = async () => {
     if (!currentPassword || !newPassword || !confirmPassword) {
-      Alert.alert(translate("common.error"), translate("profile.error.password_required"));
+      showAppAlert(translate("common.error"), translate("profile.error.password_required"));
       return;
     }
 
     if (!passwordRegex.test(newPassword)) {
-      Alert.alert(translate("common.error"), translate("profile.error.password_rule"));
+      showAppAlert(translate("common.error"), translate("profile.error.password_rule"));
       return;
     }
 
     if (newPassword !== confirmPassword) {
-      Alert.alert(translate("common.error"), translate("profile.error.password_mismatch"));
+      showAppAlert(translate("common.error"), translate("profile.error.password_mismatch"));
       return;
     }
 
@@ -178,9 +179,9 @@ export default function EditProfileScreen({ navigation }: any) {
       setNewPassword("");
       setConfirmPassword("");
       setPasswordDialogVisible(false);
-      Alert.alert(translate("common.success"), translate("profile.success.password_updated"));
+      showAppAlert(translate("common.success"), translate("profile.success.password_updated"));
     } catch (error: any) {
-      Alert.alert(translate("common.error"), error?.response?.data?.error || translate("profile.error.password_failed"));
+      showAppAlert(translate("common.error"), error?.response?.data?.error || translate("profile.error.password_failed"));
     } finally {
       setPasswordLoading(false);
     }
@@ -407,6 +408,8 @@ export default function EditProfileScreen({ navigation }: any) {
           </Text>
         </TouchableOpacity>
       </AppDialog>
+
+      {appAlertDialog}
     </SafeAreaView>
   );
 }

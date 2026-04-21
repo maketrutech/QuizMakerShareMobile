@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from "react";
-import { ActivityIndicator, Alert, Image, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, Image, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import AppDialog from "../components/AppDialog";
 import AuthShell from "../components/AuthShell";
+import useAppAlert from "../components/useAppAlert";
 import { register } from "../services/authService";
 import { CountryItem, getCountries, getCountryFlagSource } from "../services/countryService";
 import { isGoogleCancelled, signInWithGoogle } from "../services/googleAuthService";
@@ -30,6 +31,7 @@ export default function RegisterScreen({ navigation }: any) {
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [pushToken, setPushToken] = useState<string | null>(null);
+  const { showAppAlert, appAlertDialog } = useAppAlert(t("common.ok", "OK"));
 
   useEffect(() => {
     const loadInitialData = async () => {
@@ -39,7 +41,7 @@ export default function RegisterScreen({ navigation }: any) {
         setCountries(countryList);
       } catch (error: any) {
         log.error("Register initial load error:", error?.response?.data || error?.message || error);
-        Alert.alert(t("common.error", "Error"), t("register.error.country_load_failed", "Unable to load countries."));
+        showAppAlert(t("common.error", "Error"), t("register.error.country_load_failed", "Unable to load countries."));
       } finally {
         setCountriesLoading(false);
       }
@@ -118,7 +120,7 @@ export default function RegisterScreen({ navigation }: any) {
       navigation.navigate("Home");
     } catch (error: any) {
       log.error("Register error:", error.response?.data || error.message);
-      Alert.alert(t("common.error", "Error"), error?.response?.data?.error || t("register.error.generic", "Unable to register."));
+      showAppAlert(t("common.error", "Error"), error?.response?.data?.error || t("register.error.generic", "Unable to register."));
     } finally {
       setLoading(false);
     }
@@ -148,7 +150,7 @@ export default function RegisterScreen({ navigation }: any) {
 
       const message = error?.response?.data?.error || error?.message || t("auth.google_error", "Unable to sign in with Google.");
       log.error("Google register error:", error.response?.data || error.message);
-      Alert.alert(t("auth.google_title", "Google sign-in"), message);
+      showAppAlert(t("auth.google_title", "Google sign-in"), message);
     } finally {
       setGoogleLoading(false);
     }
@@ -270,6 +272,8 @@ export default function RegisterScreen({ navigation }: any) {
           })}
         </View>
       </AppDialog>
+
+      {appAlertDialog}
     </AuthShell>
   );
 }

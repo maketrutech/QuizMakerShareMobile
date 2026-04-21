@@ -1,6 +1,7 @@
 import React, { useState } from "react";
-import { Alert, StyleSheet, Text, TextInput, TouchableOpacity } from "react-native";
+import { StyleSheet, Text, TextInput, TouchableOpacity } from "react-native";
 import AuthShell from "../components/AuthShell";
+import useAppAlert from "../components/useAppAlert";
 import { login } from "../services/authService";
 import { isGoogleCancelled, signInWithGoogle } from "../services/googleAuthService";
 import { translate, useTranslationVersion } from "../services/translateService";
@@ -21,6 +22,7 @@ export default function LoginScreen({ navigation }: any) {
   const [errors, setErrors] = useState({ identifier: "", password: "" });
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
+  const { showAppAlert, appAlertDialog } = useAppAlert(t("common.ok", "OK"));
 
   const validate = () => {
     let valid = true;
@@ -87,7 +89,7 @@ export default function LoginScreen({ navigation }: any) {
 
       const message = error?.response?.data?.error || error?.message || t("auth.google_error", "Unable to sign in with Google.");
       log.error("Google login error:", error.response?.data || error.message);
-      Alert.alert(t("auth.google_title", "Google sign-in"), message);
+      showAppAlert(t("auth.google_title", "Google sign-in"), message);
     } finally {
       setGoogleLoading(false);
     }
@@ -144,6 +146,8 @@ export default function LoginScreen({ navigation }: any) {
       <TouchableOpacity style={styles.secondaryButton} onPress={() => navigation.navigate("Register")}>
         <Text style={styles.secondaryButtonText}>{translate("login.register_link")}</Text>
       </TouchableOpacity>
+
+      {appAlertDialog}
     </AuthShell>
   );
 }

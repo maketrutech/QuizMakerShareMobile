@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   ScrollView,
   StyleSheet,
   Text,
@@ -12,6 +11,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import theme from "../../styles/theme";
 import GlassHeader from "../../components/GlassHeader";
+import useAppAlert from "../../components/useAppAlert";
 import { translate, useTranslationVersion } from "../../services/translateService";
 import { loadThemes } from "../../services/themeService";
 import { generateAiQuiz } from "../../services/quizService";
@@ -39,6 +39,8 @@ export default function AIQuizCreatorScreen({ navigation }: any) {
     return value === key ? fallback : value;
   };
 
+  const { showAppAlert, appAlertDialog } = useAppAlert(t("common.ok", "OK"));
+
   useEffect(() => {
     const fetchThemes = async () => {
       try {
@@ -61,17 +63,17 @@ export default function AIQuizCreatorScreen({ navigation }: any) {
     const normalizedCount = Math.max(10, Math.min(100, Number(questionCount) || 0));
 
     if (!selectedThemeId) {
-      Alert.alert(t("common.error", "Error"), t("aiQuiz.error.theme_required", "Please choose a theme."));
+      showAppAlert(t("common.error", "Error"), t("aiQuiz.error.theme_required", "Please choose a theme."));
       return;
     }
 
     if (!prompt.trim()) {
-      Alert.alert(t("common.error", "Error"), t("aiQuiz.error.prompt_required", "Please enter a prompt."));
+      showAppAlert(t("common.error", "Error"), t("aiQuiz.error.prompt_required", "Please enter a prompt."));
       return;
     }
 
     if (normalizedCount < 10 || normalizedCount > 100) {
-      Alert.alert(t("common.error", "Error"), t("aiQuiz.error.invalid_count", "Question count must be between 10 and 100."));
+      showAppAlert(t("common.error", "Error"), t("aiQuiz.error.invalid_count", "Question count must be between 10 and 100."));
       return;
     }
 
@@ -104,7 +106,7 @@ export default function AIQuizCreatorScreen({ navigation }: any) {
             ? `${t("aiQuiz.success.created", "AI quiz created successfully.")}\n${t("points.remaining", "Remaining points")}: ${result.remainingPoints} ${t("points.unit", "pts")}`
             : t("aiQuiz.success.created", "AI quiz created successfully.");
 
-        Alert.alert(t("common.success", "Success"), successMessage);
+        showAppAlert(t("common.success", "Success"), successMessage);
         navigation.replace("EditQuizScreen", { quizId: result.quizId });
         return;
       }
@@ -114,9 +116,9 @@ export default function AIQuizCreatorScreen({ navigation }: any) {
           ? t("points.not_enough", "You need at least 30 points to create a quiz.")
           : result?.error || t("aiQuiz.error.generate_failed", "Unable to generate the quiz.");
 
-      Alert.alert(t("common.error", "Error"), errorMessage);
+      showAppAlert(t("common.error", "Error"), errorMessage);
     } catch (error: any) {
-      Alert.alert(t("common.error", "Error"), error?.message || t("aiQuiz.error.generate_failed", "Unable to generate the quiz."));
+      showAppAlert(t("common.error", "Error"), error?.message || t("aiQuiz.error.generate_failed", "Unable to generate the quiz."));
     } finally {
       setSaving(false);
     }
@@ -206,6 +208,8 @@ export default function AIQuizCreatorScreen({ navigation }: any) {
           </View>
         </ScrollView>
       )}
+
+      {appAlertDialog}
     </SafeAreaView>
   );
 }

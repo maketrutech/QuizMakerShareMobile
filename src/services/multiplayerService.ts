@@ -26,9 +26,12 @@ export type MultiplayerPlayer = {
 export type MultiplayerRoomState = {
   roomId: string | null;
   themeId?: number;
+  themeOptions?: Array<{ id: number; name: string }>;
+  themeVotes?: Array<{ socketId: string; themeId: number }>;
+  themeVoteDeadlineAt?: number | null;
   quiz?: {
-    id: number;
-    name: string;
+    id: number | null;
+    name: string | null;
   } | null;
   phase: string;
   presenterState?: "idle" | "speaking";
@@ -95,8 +98,12 @@ export const leaveMultiplayerRoom = () => {
   multiplayerSocket?.emit("multiplayer:leave");
 };
 
-export const joinMultiplayerMatchmaking = (payload: { themeId: number; language: string }) => {
+export const joinMultiplayerMatchmaking = (payload: { language: string }) => {
   multiplayerSocket?.emit("multiplayer:matchmaking:join", payload);
+};
+
+export const submitMultiplayerThemeVote = (payload: { roomId?: string | null; themeId: number }) => {
+  multiplayerSocket?.emit("multiplayer:theme_vote", payload);
 };
 
 export const buzzMultiplayer = (roomId?: string | null) => {
