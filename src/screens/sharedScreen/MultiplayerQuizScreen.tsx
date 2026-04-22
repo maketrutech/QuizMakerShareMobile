@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  AppState,
+  AppStateStatus,
   Animated,
   Image,
   ScrollView,
@@ -53,6 +55,9 @@ const PLAYER_SLOT_LAYOUT = {
 const THEME_COUNTDOWN_STEPS = ["3", "2", "1", "0", "START"] as const;
 const THEME_COUNTDOWN_STEP_MS = 1000;
 const THEME_COUNTDOWN_END_HOLD_MS = 1000;
+const BUZZ_SPAM_WINDOW_MS = 1200;
+const BUZZ_SPAM_MAX_TAPS = 5;
+const BUZZ_SPAM_BLOCK_MS = 5000;
 type ThemeCountdownStep = typeof THEME_COUNTDOWN_STEPS[number];
 type QuestionOpenPayload = {
   presenterState?: PresenterState;
@@ -119,11 +124,16 @@ export default function MultiplayerQuizScreen({ navigation }: any) {
   const [themeCountdownStep, setThemeCountdownStep] = useState<ThemeCountdownStep | null>(null);
   const [winnerDialogVisible, setWinnerDialogVisible] = useState(false);
   const [winnerPlayer, setWinnerPlayer] = useState<WinnerPlayer | null>(null);
+  const [activeResponderName, setActiveResponderName] = useState<string | null>(null);
+  const [buzzBlockedUntil, setBuzzBlockedUntil] = useState<number | null>(null);
+  const [buzzBlockSecondsLeft, setBuzzBlockSecondsLeft] = useState(0);
   const timeoutRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const themeCountdownTimersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const buzzTapTimesRef = useRef<number[]>([]);
   const themeCountdownRunningRef = useRef(false);
   const pendingQuestionOpenRef = useRef<QuestionOpenPayload | null>(null);
   const roomStateRef = useRef<MultiplayerRoomState | null>(null);
+  const appStateRef = useRef<AppStateStatus>(AppState.currentState);
   const themeCountdownScale = useRef(new Animated.Value(0.5)).current;
   const themeCountdownOpacity = useRef(new Animated.Value(0)).current;
   const { showAppAlert, appAlertDialog } = useAppAlert(translate("common.ok") === "common.ok" ? "OK" : translate("common.ok"));
@@ -142,7 +152,7 @@ export default function MultiplayerQuizScreen({ navigation }: any) {
     if (!player) {
       return null;
     }
-console.log(player);
+
     const flagUrl = getCountryFlagUrl(player.country?.flagUrl || null, player.country?.key || null);
     return flagUrl ? { uri: flagUrl } : null;
   };
@@ -150,6 +160,56 @@ console.log(player);
   useEffect(() => {
     roomStateRef.current = roomState;
   }, [roomState]);
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener("change", (nextAppState) => {
+      const previousState = appStateRef.current;
+      appStateRef.current = nextAppState;
+
+      const movedToBackground = previousState === "active" && nextAppState !== "active";
+      if (!movedToBackground) {
+        return;
+      }
+
+      if (!roomStateRef.current?.roomId) {
+        return;
+      }
+
+      stopThemeCountdown();
+      pendingQuestionOpenRef.current = null;
+      clearAnswerReveal();
+      leaveMultiplayerRoom();
+      disconnectMultiplayerSocket();
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!buzzBlockedUntil) {
+      setBuzzBlockSecondsLeft(0);
+      return;
+    }
+
+    const updateBuzzBlockCountdown = () => {
+      const remainingMs = buzzBlockedUntil - Date.now();
+
+      if (remainingMs <= 0) {
+        setBuzzBlockedUntil(null);
+        setBuzzBlockSecondsLeft(0);
+        buzzTapTimesRef.current = [];
+        return;
+      }
+
+      setBuzzBlockSecondsLeft(Math.ceil(remainingMs / 1000));
+    };
+
+    updateBuzzBlockCountdown();
+    const intervalId = setInterval(updateBuzzBlockCountdown, 200);
+    return () => clearInterval(intervalId);
+  }, [buzzBlockedUntil]);
 
   const resolveWinnerFromRoom = (snapshot: MultiplayerRoomState | null): WinnerPlayer | null => {
     const players = snapshot?.players || [];
@@ -181,6 +241,7 @@ console.log(player);
 
   const applyQuestionOpenPayload = (payload: QuestionOpenPayload) => {
     clearAnswerReveal();
+    setActiveResponderName(null);
     setPresenterState(payload.presenterState || "idle");
     setCurrentQuestion(payload.question);
     setDeadlineAt(null);
@@ -413,10 +474,18 @@ console.log(player);
       applyQuestionOpenPayload(payload);
     });
 
-    socket.on("locked", (payload: { lockedSocketId: string; answerDeadlineAt?: number; presenterState?: "idle" | "speaking" }) => {
+    socket.on("locked", (payload: { lockedSocketId: string; lockedUserId?: number; answerDeadlineAt?: number; presenterState?: "idle" | "speaking" }) => {
       setPresenterState(payload.presenterState || "speaking");
       setDeadlineAt(payload.answerDeadlineAt || null);
       setRoomState((current) => current ? { ...current, lockedSocketId: payload.lockedSocketId } : current);
+
+      const responderFromSocket = roomStateRef.current?.players?.find((item) => item.socketId === payload.lockedSocketId);
+      const responderFromUser = typeof payload.lockedUserId === "number"
+        ? roomStateRef.current?.players?.find((item) => item.userId === payload.lockedUserId)
+        : null;
+      setActiveResponderName(
+        responderFromSocket?.username || responderFromUser?.username || tr("multiplayer.player_generic", "player")
+      );
 
       if (payload.lockedSocketId === socket.id) {
         setStatusText(tr("multiplayer.you_buzzed_first", "You buzzed first. Answer now."));
@@ -430,6 +499,7 @@ console.log(player);
       setDeadlineAt(null);
       setSubmittingAnswerId(null);
       clearAnswerReveal();
+      setActiveResponderName(null);
       setRoomState((current) => current ? { ...current, lockedSocketId: null } : current);
       setStatusText(tr("multiplayer.buzzer_reset", "Buzzer reset. Buzz again."));
     });
@@ -439,7 +509,7 @@ console.log(player);
       setSubmittingAnswerId(null);
       setRevealedCorrectAnswerId(payload.correctAnswerId ?? null);
       setAnswerRevealResult(payload.result);
-      setSelectedAnswerId(payload.userId === currentUserId ? payload.answerId ?? null : null);
+      setSelectedAnswerId(payload.answerId ?? null);
 
       if (payload.result === "correct") {
         setPresenterState("correct");
@@ -586,6 +656,29 @@ console.log(player);
   }, [roomState]);
 
   const isRevealPhase = roomState?.phase === "answer-reveal";
+  const isBuzzTemporarilyBlocked = buzzBlockSecondsLeft > 0;
+
+  const handleBuzzPress = () => {
+    if (!roomState?.roomId || !canBuzz) {
+      return;
+    }
+
+    const now = Date.now();
+    if (buzzBlockedUntil && now < buzzBlockedUntil) {
+      return;
+    }
+
+    const recentTaps = buzzTapTimesRef.current.filter((timestamp) => now - timestamp <= BUZZ_SPAM_WINDOW_MS);
+    recentTaps.push(now);
+    buzzTapTimesRef.current = recentTaps;
+
+    if (recentTaps.length >= BUZZ_SPAM_MAX_TAPS) {
+      setBuzzBlockedUntil(now + BUZZ_SPAM_BLOCK_MS);
+      return;
+    }
+
+    buzzMultiplayer(roomState.roomId);
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -726,36 +819,62 @@ console.log(player);
             {canViewResponses && currentQuestion ? (
               <View style={styles.centerStageContent}>
                 <View style={styles.questionHero}>
-                  <Text style={styles.questionEyebrow}>{tr("multiplayer.live_question_label", "Live Question")}</Text>
+                  <View style={styles.questionEyebrowRow}>
+                    <Text style={styles.questionEyebrow}>{tr("multiplayer.live_question_label", "Live Question")}</Text>
+                    {roomState?.phase === "buzz-locked" && activeResponderName ? (
+                      <View style={styles.responderBadge}>
+                        <View style={styles.responderDot} />
+                        <Text style={styles.responderBadgeText} numberOfLines={1}>
+                          {activeResponderName}
+                        </Text>
+                      </View>
+                    ) : null}
+                  </View>
                   <Text style={styles.centerGameQuestion}>{currentQuestion.questionText}</Text>
                 </View>
                 <View style={styles.answersGrid}>
-                  {currentQuestion.answers.map((answer) => (
-                    <TouchableOpacity
-                      key={answer.id}
-                      style={[
-                        styles.answerButton,
-                        submittingAnswerId === answer.id && styles.answerButtonActive,
-                        revealedCorrectAnswerId === answer.id && styles.answerButtonCorrect,
-                        selectedAnswerId === answer.id && answerRevealResult !== "correct" && revealedCorrectAnswerId !== answer.id && styles.answerButtonWrong,
-                      ]}
-                      disabled={submittingAnswerId !== null || isRevealPhase || !canAnswer}
-                      onPress={() => {
-                        setSubmittingAnswerId(answer.id);
-                        setSelectedAnswerId(answer.id);
-                        submitMultiplayerAnswer({ roomId: roomState?.roomId, questionId: currentQuestion.id, answerId: answer.id });
-                      }}
-                    >
-                      <Text
+                  {/* Only show selected answer after player has answered */}
+                  {selectedAnswerId !== null && isRevealPhase ? (
+                    currentQuestion.answers
+                      .filter((answer) => answer.id === selectedAnswerId)
+                      .map((answer) => (
+                        <View
+                          key={answer.id}
+                          style={[
+                            styles.answerButton,
+                            revealedCorrectAnswerId === answer.id && styles.answerButtonCorrect,
+                            selectedAnswerId === answer.id && answerRevealResult !== "correct" && revealedCorrectAnswerId !== answer.id && styles.answerButtonWrong,
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.answerButtonText,
+                              (revealedCorrectAnswerId === answer.id || (selectedAnswerId === answer.id && answerRevealResult !== "correct" && revealedCorrectAnswerId !== answer.id)) && styles.answerButtonTextInverted,
+                            ]}
+                          >
+                            {answer.answerText}
+                          </Text>
+                        </View>
+                      ))
+                  ) : (
+                    currentQuestion.answers.map((answer) => (
+                      <TouchableOpacity
+                        key={answer.id}
                         style={[
-                          styles.answerButtonText,
-                          (revealedCorrectAnswerId === answer.id || (selectedAnswerId === answer.id && answerRevealResult !== "correct" && revealedCorrectAnswerId !== answer.id)) && styles.answerButtonTextInverted,
+                          styles.answerButton,
+                          submittingAnswerId === answer.id && styles.answerButtonActive,
                         ]}
+                        disabled={submittingAnswerId !== null || isRevealPhase || !canAnswer}
+                        onPress={() => {
+                          setSubmittingAnswerId(answer.id);
+                          setSelectedAnswerId(answer.id);
+                          submitMultiplayerAnswer({ roomId: roomState?.roomId, questionId: currentQuestion.id, answerId: answer.id });
+                        }}
                       >
-                        {answer.answerText}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
+                        <Text style={styles.answerButtonText}>{answer.answerText}</Text>
+                      </TouchableOpacity>
+                    ))
+                  )}
                 </View>
                 {isRevealPhase ? (
                   <Text style={styles.readonlyHint}>
@@ -789,11 +908,15 @@ console.log(player);
                   )}
                 </View>
                 <TouchableOpacity
-                  style={[styles.bigBuzzButton, !canBuzz && styles.buttonDisabled]}
-                  onPress={() => buzzMultiplayer(roomState?.roomId)}
-                  disabled={!canBuzz}
+                  style={[styles.bigBuzzButton, (!canBuzz || isBuzzTemporarilyBlocked) && styles.buttonDisabled]}
+                  onPress={handleBuzzPress}
+                  disabled={!canBuzz || isBuzzTemporarilyBlocked}
                 >
-                  <Text style={styles.bigBuzzButtonText}>{tr("multiplayer.buzz_button", "BUZZ")}</Text>
+                  <Text style={styles.bigBuzzButtonText}>
+                    {isBuzzTemporarilyBlocked
+                      ? `${tr("common.wait", "Wait")}... ${buzzBlockSecondsLeft}s`
+                      : tr("multiplayer.buzz_button", "BUZZ")}
+                  </Text>
                 </TouchableOpacity>
                 {deadlineAt ? <Text style={styles.timerText}>{timeLeft}s</Text> : null}
               </View>
@@ -965,6 +1088,36 @@ const styles = StyleSheet.create({
     fontWeight: "900",
     letterSpacing: 0.9,
     textTransform: "uppercase",
+  },
+  questionEyebrowRow: {
+    width: "100%",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 8,
+  },
+  responderBadge: {
+    maxWidth: "62%",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: "#c8ffe8",
+    backgroundColor: "#e9fbf6",
+  },
+  responderDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: theme.success,
+  },
+  responderBadgeText: {
+    color: "#0d7f57",
+    fontSize: 11,
+    fontWeight: "900",
   },
   centerGameTitle: {
     color: theme.primary,

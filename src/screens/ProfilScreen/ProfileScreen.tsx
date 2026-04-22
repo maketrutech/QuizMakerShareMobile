@@ -24,11 +24,13 @@ export default function ProfileScreen() {
       const loadProfile = async () => {
         const userData: any = await getItem("userData");
         if (userData?.user) {
+          const avatarUrl = userData.user.avatarUrl || "";
+          console.log("[ProfileScreen] avatarUrl from storage:", avatarUrl);
           setProfile({
             username: userData.user.username || "",
             email: userData.user.email || "",
             avatar: userData.user.avatar || "avatar1",
-            avatarUrl: userData.user.avatarUrl || "",
+            avatarUrl,
           });
         }
       };

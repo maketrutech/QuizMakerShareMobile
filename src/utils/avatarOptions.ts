@@ -11,16 +11,18 @@ const normalizeAvatarName = (avatarName?: string | null) => {
   return avatarNames.includes(nextAvatar) ? nextAvatar : DEFAULT_AVATAR;
 };
 
+const fixAvatarUrl = (url: string) => url.replace(/\/api\/api\//gi, "/api/");
+
 export const getAvatarUrl = (avatarName?: string | null, avatarUrl?: string | null) => {
   const trimmedAvatarUrl = String(avatarUrl || "").trim();
 
   if (trimmedAvatarUrl) {
     if (/^https?:\/\//i.test(trimmedAvatarUrl)) {
-      return trimmedAvatarUrl;
+      return fixAvatarUrl(trimmedAvatarUrl);
     }
 
     if (trimmedAvatarUrl.startsWith("/")) {
-      return `${backendBaseUrl}${trimmedAvatarUrl}`;
+      return fixAvatarUrl(`${backendBaseUrl}${trimmedAvatarUrl}`);
     }
   }
 
