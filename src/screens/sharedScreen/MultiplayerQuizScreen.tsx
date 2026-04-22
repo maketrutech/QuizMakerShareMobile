@@ -92,12 +92,8 @@ type WinnerPlayer = {
 
 export default function MultiplayerQuizScreen({ navigation }: any) {
   useTranslationVersion();
-  const tr = (key: string, fallback: string, params?: Record<string, string | number>) => {
+  const translateWithParams = (key: string, params?: Record<string, string | number>) => {
     let value = translate(key);
-    if (value === key) {
-      value = fallback;
-    }
-
     if (params) {
       Object.entries(params).forEach(([name, paramValue]) => {
         value = value.replace(new RegExp(`\\{${name}\\}`, "g"), String(paramValue));
@@ -111,7 +107,7 @@ export default function MultiplayerQuizScreen({ navigation }: any) {
   const [roomState, setRoomState] = useState<MultiplayerRoomState | null>(null);
   const [currentQuestion, setCurrentQuestion] = useState<MultiplayerQuestion | null>(null);
   const [presenterState, setPresenterState] = useState<PresenterState>("idle");
-  const [statusText, setStatusText] = useState(tr("multiplayer.initial_prompt", "Tap start matchmaking."));
+  const [statusText, setStatusText] = useState(translate("multiplayer.initial_prompt"));
   const [deadlineAt, setDeadlineAt] = useState<number | null>(null);
   const [timeLeft, setTimeLeft] = useState<number>(0);
   const [currentUserId, setCurrentUserId] = useState<number | null>(null);
@@ -246,7 +242,7 @@ export default function MultiplayerQuizScreen({ navigation }: any) {
     setCurrentQuestion(payload.question);
     setDeadlineAt(null);
     setSubmittingAnswerId(null);
-    setStatusText(tr("multiplayer.question_count", "Question {index}/{total}", {
+    setStatusText(translateWithParams("multiplayer.question_count", {
       index: payload.questionIndex,
       total: payload.totalQuestions,
     }));
@@ -422,23 +418,23 @@ export default function MultiplayerQuizScreen({ navigation }: any) {
       if (payload.phase === "matchmaking") {
         const waitingCount = payload.waitingCount || 1;
         const requiredCount = payload.requiredCount || 2;
-        setStatusText(tr("multiplayer.waiting_for_players", "Waiting for players {waiting}/{required}", {
+        setStatusText(translateWithParams("multiplayer.waiting_for_players", {
           waiting: waitingCount,
           required: requiredCount,
         }));
       } else if (payload.phase === "theme-voting") {
-        setStatusText(tr("multiplayer.players_found", "Players found. Vote for a theme."));
+        setStatusText(translate("multiplayer.players_found"));
       } else if (payload.phase === "question-open") {
-        setStatusText(tr("multiplayer.phase_question_open", "Buzz first to answer."));
+        setStatusText(translate("multiplayer.phase_question_open"));
       } else if (payload.phase === "buzz-locked") {
-        setStatusText(tr("multiplayer.phase_buzz_locked", "One player is answering now."));
+        setStatusText(translate("multiplayer.phase_buzz_locked"));
       } else if (payload.phase === "finished") {
-        setStatusText(tr("multiplayer.phase_finished", "Match finished."));
+        setStatusText(translate("multiplayer.phase_finished"));
       }
     });
 
     socket.on("multiplayer:match_found", () => {
-      setStatusText(tr("multiplayer.match_found", "Match found. Vote for a theme to start."));
+      setStatusText(translate("multiplayer.match_found"));
       setJoining(false);
     });
 
@@ -455,12 +451,12 @@ export default function MultiplayerQuizScreen({ navigation }: any) {
           themeVoteDeadlineAt: payload.voteDeadlineAt || null,
         };
       });
-      setStatusText(tr("multiplayer.vote_theme_prompt", "Vote for one theme."));
+      setStatusText(translate("multiplayer.vote_theme_prompt"));
     });
 
     socket.on("multiplayer:theme_selected", (payload: { themeName?: string }) => {
-      setStatusText(tr("multiplayer.theme_selected", "Theme selected: {theme}. Starting game...", {
-        theme: payload?.themeName || tr("multiplayer.theme_generic", "Theme"),
+      setStatusText(translateWithParams("multiplayer.theme_selected", {
+        theme: payload?.themeName || translate("multiplayer.theme_generic"),
       }));
       startThemeCountdown();
     });
@@ -484,13 +480,13 @@ export default function MultiplayerQuizScreen({ navigation }: any) {
         ? roomStateRef.current?.players?.find((item) => item.userId === payload.lockedUserId)
         : null;
       setActiveResponderName(
-        responderFromSocket?.username || responderFromUser?.username || tr("multiplayer.player_generic", "player")
+        responderFromSocket?.username || responderFromUser?.username || translate("multiplayer.player_generic")
       );
 
       if (payload.lockedSocketId === socket.id) {
-        setStatusText(tr("multiplayer.you_buzzed_first", "You buzzed first. Answer now."));
+        setStatusText(translate("multiplayer.you_buzzed_first"));
       } else {
-        setStatusText(tr("multiplayer.other_buzzed_first", "Another player buzzed first."));
+        setStatusText(translate("multiplayer.other_buzzed_first"));
       }
     });
 
@@ -501,7 +497,7 @@ export default function MultiplayerQuizScreen({ navigation }: any) {
       clearAnswerReveal();
       setActiveResponderName(null);
       setRoomState((current) => current ? { ...current, lockedSocketId: null } : current);
-      setStatusText(tr("multiplayer.buzzer_reset", "Buzzer reset. Buzz again."));
+      setStatusText(translate("multiplayer.buzzer_reset"));
     });
 
     socket.on("answer_result", (payload: AnswerResultPayload) => {
@@ -524,17 +520,17 @@ export default function MultiplayerQuizScreen({ navigation }: any) {
       if (payload.result === "correct") {
         setStatusText(
           payload.userId === currentUserId
-            ? tr("multiplayer.you_answered_correct", "Correct answer!")
-            : tr("multiplayer.player_answered_correct", "A player answered correctly.")
+            ? translate("multiplayer.you_answered_correct")
+            : translate("multiplayer.player_answered_correct")
         );
       } else if (payload.result === "wrong" || payload.result === "timeout" || payload.result === "disconnect-timeout") {
         setStatusText(
           payload.userId === currentUserId
-            ? tr("multiplayer.you_answered_wrong", "Wrong answer. Next question coming up.")
-            : tr("multiplayer.player_answered_wrong", "Wrong answer. Next question coming up.")
+            ? translate("multiplayer.you_answered_wrong")
+            : translate("multiplayer.player_answered_wrong")
         );
       } else if (payload.result === "reveal") {
-        setStatusText(tr("multiplayer.no_players_left", "Answer revealed. Next question coming up."));
+        setStatusText(translate("multiplayer.no_players_left"));
       }
     });
 
@@ -548,12 +544,12 @@ export default function MultiplayerQuizScreen({ navigation }: any) {
       if (payload?.players?.length) {
         setRoomState((current) => current ? { ...current, players: payload.players || [] } : current);
       }
-      setStatusText(tr("multiplayer.game_finished", "Game finished. See final scores below."));
+      setStatusText(translate("multiplayer.game_finished"));
       showWinnerDialog(payload?.players);
     });
 
     socket.on("multiplayer:error", (payload: { message?: string }) => {
-      const message = payload?.message || tr("multiplayer.error_continue", "Unable to continue multiplayer match.");
+      const message = payload?.message || translate("multiplayer.error_continue");
       stopThemeCountdown();
       pendingQuestionOpenRef.current = null;
       clearAnswerReveal();
@@ -579,7 +575,7 @@ export default function MultiplayerQuizScreen({ navigation }: any) {
 
     const storedUserData = await getItem<StoredUserData>("userData");
     if (!storedUserData?.token) {
-      showAppAlert(translate("common.error"), tr("multiplayer.error_not_logged_in", "You must be logged in to play multiplayer."));
+      showAppAlert(translate("common.error"), translate("multiplayer.error_not_logged_in"));
       return;
     }
 
@@ -590,10 +586,10 @@ export default function MultiplayerQuizScreen({ navigation }: any) {
       setCurrentSocketId(socket.id || "");
       attachSocketListeners();
       joinMultiplayerMatchmaking({ language: selectedLanguage });
-      setStatusText(tr("multiplayer.joining_matchmaking", "Joining matchmaking..."));
+      setStatusText(translate("multiplayer.joining_matchmaking"));
     } catch (error: any) {
       setJoining(false);
-      showAppAlert(translate("common.error"), error?.message || tr("multiplayer.error_connection", "Unable to connect to multiplayer."));
+      showAppAlert(translate("common.error"), error?.message || translate("multiplayer.error_connection"));
     }
   };
 
@@ -684,7 +680,7 @@ export default function MultiplayerQuizScreen({ navigation }: any) {
     <SafeAreaView style={styles.container}>
       <View style={styles.headerArea}>
         <GlassHeader
-          title={translate("home.multiplayer_title") === "home.multiplayer_title" ? tr("multiplayer.screen_title", "Multiplayer Quiz") : translate("home.multiplayer_title")}
+          title={translate("home.multiplayer_title")}
           subtitle={statusText}
           onBackPress={handleBack}
         />
@@ -694,7 +690,7 @@ export default function MultiplayerQuizScreen({ navigation }: any) {
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         {canVoteTheme ? (
           <View style={[styles.playersCard, commonStyles.softCardShadow]}>
-            <Text style={styles.sectionTitle}>{tr("multiplayer.vote_theme_label", "Vote Theme")}</Text>
+            <Text style={styles.sectionTitle}>{translate("multiplayer.vote_theme_label")}</Text>
             <View style={styles.themeVoteList}>
               {(roomState?.themeOptions || []).map((item) => {
                 const isSelected = myThemeVoteId === item.id;
@@ -722,14 +718,14 @@ export default function MultiplayerQuizScreen({ navigation }: any) {
                   resizeMode="contain"
                   onError={() => setPresenterImageFailed(true)}
                 />
-                {presenterImageFailed ? <Text style={styles.presenterFallback}>{tr("multiplayer.presenter_fallback", "Quiz Master")}</Text> : null}
+                {presenterImageFailed ? <Text style={styles.presenterFallback}>{translate("multiplayer.presenter_fallback")}</Text> : null}
                 {currentQuestion ? <Text style={styles.questionText}>{currentQuestion.questionText}</Text> : null}
                 {deadlineAt ? <Text style={styles.timerText}>{timeLeft}s</Text> : null}
               </View>
             ) : null}
 
             <View style={[styles.playersCard, commonStyles.softCardShadow]}>
-              <Text style={styles.sectionTitle}>{tr("multiplayer.players_section", "Players")}</Text>
+              <Text style={styles.sectionTitle}>{translate("multiplayer.players_section")}</Text>
               <View style={styles.playersGrid}>
                 {displayedPlayers.map((player: any) => {
                   const isRealPlayer = Boolean(player.userId);
@@ -750,7 +746,7 @@ export default function MultiplayerQuizScreen({ navigation }: any) {
                             <Text style={styles.playerName} numberOfLines={1}>{player.username}</Text>
                             {player.isVirtual ? (
                               <View style={styles.botBadge}>
-                                <Text style={styles.botBadgeText}>{tr("multiplayer.bot_badge", "BOT")}</Text>
+                                <Text style={styles.botBadgeText}>{translate("multiplayer.bot_badge")}</Text>
                               </View>
                             ) : null}
                           </View>
@@ -759,7 +755,7 @@ export default function MultiplayerQuizScreen({ navigation }: any) {
                       ) : (
                         <>
                           <View style={styles.emptyAvatar} />
-                          <Text style={styles.emptyText}>{tr("multiplayer.waiting_status", "Waiting...")}</Text>
+                          <Text style={styles.emptyText}>{translate("multiplayer.waiting_status")}</Text>
                         </>
                       )}
                     </View>
@@ -773,7 +769,7 @@ export default function MultiplayerQuizScreen({ navigation }: any) {
                     onPress={startMatchmaking}
                     disabled={joining}
                   >
-                    {joining ? <ActivityIndicator color={theme.white} /> : <Text style={styles.primaryButtonText}>{tr("multiplayer.start_button", "Start matchmaking")}</Text>}
+                    {joining ? <ActivityIndicator color={theme.white} /> : <Text style={styles.primaryButtonText}>{translate("multiplayer.start_button")}</Text>}
                   </TouchableOpacity>
                 </View>
               ) : null}
@@ -820,12 +816,12 @@ export default function MultiplayerQuizScreen({ navigation }: any) {
               <View style={styles.centerStageContent}>
                 <View style={styles.questionHero}>
                   <View style={styles.questionEyebrowRow}>
-                    <Text style={styles.questionEyebrow}>{tr("multiplayer.live_question_label", "Live Question")}</Text>
+                    <Text style={styles.questionEyebrow}>{translate("multiplayer.live_question_label")}</Text>
                     {roomState?.phase === "buzz-locked" && activeResponderName ? (
                       <View style={styles.responderBadge}>
                         <View style={styles.responderDot} />
                         <Text style={styles.responderBadgeText} numberOfLines={1}>
-                          {activeResponderName}
+                          {translateWithParams("multiplayer.responder_now", { player: activeResponderName })}
                         </Text>
                       </View>
                     ) : null}
@@ -879,13 +875,13 @@ export default function MultiplayerQuizScreen({ navigation }: any) {
                 {isRevealPhase ? (
                   <Text style={styles.readonlyHint}>
                     {answerRevealResult === "correct"
-                      ? tr("multiplayer.reveal_correct", "Correct answer locked in. Next question loading...")
-                      : tr("multiplayer.reveal_result", "Answer revealed. Next question loading...")}
+                      ? translate("multiplayer.reveal_correct")
+                      : translate("multiplayer.reveal_result")}
                   </Text>
                 ) : !canAnswer ? (
                   <Text style={styles.readonlyHint}>
-                    {tr("multiplayer.waiting_for_answer", "Waiting for {player} answer...", {
-                      player: lockedPlayer?.username || tr("multiplayer.player_generic", "player"),
+                    {translateWithParams("multiplayer.waiting_for_answer", {
+                      player: lockedPlayer?.username || translate("multiplayer.player_generic"),
                     })}
                   </Text>
                 ) : null}
@@ -898,13 +894,13 @@ export default function MultiplayerQuizScreen({ navigation }: any) {
                   resizeMode="contain"
                   onError={() => setPresenterImageFailed(true)}
                 />
-                {presenterImageFailed ? <Text style={styles.presenterFallback}>{tr("multiplayer.presenter_fallback", "Quiz Master")}</Text> : null}
+                {presenterImageFailed ? <Text style={styles.presenterFallback}>{translate("multiplayer.presenter_fallback")}</Text> : null}
                 <View style={styles.questionHero}>
-                  <Text style={styles.questionEyebrow}>{tr("multiplayer.round_question_label", "Round Question")}</Text>
+                  <Text style={styles.questionEyebrow}>{translate("multiplayer.round_question_label")}</Text>
                   {currentQuestion ? (
                     <Text style={styles.centerGameQuestion}>{currentQuestion.questionText}</Text>
                   ) : (
-                    <Text style={styles.centerGameQuestion}>{tr("multiplayer.get_ready", "Get ready for next question...")}</Text>
+                    <Text style={styles.centerGameQuestion}>{translate("multiplayer.get_ready")}</Text>
                   )}
                 </View>
                 <TouchableOpacity
@@ -914,8 +910,8 @@ export default function MultiplayerQuizScreen({ navigation }: any) {
                 >
                   <Text style={styles.bigBuzzButtonText}>
                     {isBuzzTemporarilyBlocked
-                      ? `${tr("common.wait", "Wait")}... ${buzzBlockSecondsLeft}s`
-                      : tr("multiplayer.buzz_button", "BUZZ")}
+                      ? `${translate("common.wait")}... ${buzzBlockSecondsLeft}s`
+                      : translate("multiplayer.buzz_button")}
                   </Text>
                 </TouchableOpacity>
                 {deadlineAt ? <Text style={styles.timerText}>{timeLeft}s</Text> : null}
@@ -953,8 +949,8 @@ export default function MultiplayerQuizScreen({ navigation }: any) {
 
       <AppDialog
         visible={winnerDialogVisible}
-        title={tr("multiplayer.winner_dialog_title", "Winner")}
-        subtitle={tr("multiplayer.winner_dialog_subtitle", "Match complete")}
+        title={translate("multiplayer.winner_dialog_title")}
+        subtitle={translate("multiplayer.winner_dialog_subtitle")}
         onClose={handleBack}
       >
         {(() => {
@@ -984,7 +980,7 @@ export default function MultiplayerQuizScreen({ navigation }: any) {
             ) : null}
 
             <Text style={styles.winnerName} numberOfLines={1}>
-              {winnerPlayer?.username || tr("multiplayer.player_generic", "player")}
+              {winnerPlayer?.username || translate("multiplayer.player_generic")}
             </Text>
 
             <Text style={styles.winnerPts}>
@@ -993,7 +989,7 @@ export default function MultiplayerQuizScreen({ navigation }: any) {
           </View>
 
           <TouchableOpacity style={styles.winnerBackButton} onPress={handleBack}>
-            <Text style={styles.winnerBackButtonText}>{tr("common.back", "Back")}</Text>
+            <Text style={styles.winnerBackButtonText}>{translate("common.back")}</Text>
           </TouchableOpacity>
         </View>
           );
