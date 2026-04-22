@@ -6,6 +6,7 @@ import GenericList from "../../components/GenericList";
 import { translate, useTranslationVersion } from "../../services/translateService";
 import { loadQuizPlayersPage } from "../../services/quizService";
 import { getAvatarSource } from "../../utils/avatarOptions";
+import { getCountryFlagSource } from "../../services/countryService";
 import theme from "../../styles/theme";
 import commonStyles from "../../styles/commonStyles";
 
@@ -17,6 +18,7 @@ type PlayerItem = {
   username: string;
   avatar?: string;
   avatarUrl?: string;
+  country?: { key: string; name?: string; flagUrl?: string | null } | null;
   bestScore: number;
   playCount: number;
   bestTimeSeconds?: number | null;
@@ -99,7 +101,14 @@ export default function QuizPlayersLeaderboardScreen({ navigation, route }: any)
                 <Text style={styles.rankText}>{item.rank}</Text>
               </View>
 
-              <Image source={getAvatarSource(item.avatar, item.avatarUrl)} style={styles.avatar} />
+              <Image source={getAvatarSource(item.avatar, null)} style={styles.avatar} />
+
+              {item.country?.key ? (
+                <Image
+                  source={getCountryFlagSource(null, item.country.key)}
+                  style={styles.rowFlag}
+                />
+              ) : null}
 
               <View style={styles.textWrap}>
                 <Text style={styles.name}>{item.username}</Text>
@@ -174,7 +183,14 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
-    marginRight: 12,
+    marginRight: 8,
+  },
+  rowFlag: {
+    width: 24,
+    height: 16,
+    borderRadius: 3,
+    marginRight: 10,
+    backgroundColor: theme.white,
   },
   textWrap: {
     flex: 1,

@@ -3,6 +3,8 @@ import { API_URL } from "../config/api";
 
 const SOCKET_BASE_URL = API_URL.replace(/\/api\/?$/, "");
 
+export type PresenterState = "idle" | "speaking" | "correct" | "wrong";
+
 export type MultiplayerPlayer = {
   userId: number;
   socketId: string;
@@ -34,7 +36,7 @@ export type MultiplayerRoomState = {
     name: string | null;
   } | null;
   phase: string;
-  presenterState?: "idle" | "speaking";
+  presenterState?: PresenterState;
   currentQuestionIndex?: number;
   totalQuestions?: number;
   lockedSocketId?: string | null;
@@ -114,7 +116,12 @@ export const submitMultiplayerAnswer = (payload: { roomId?: string | null; quest
   multiplayerSocket?.emit("multiplayer:answer", payload);
 };
 
-export const getPresenterImageUrl = (state: "idle" | "speaking" = "idle") => {
-  const filename = state === "speaking" ? "presentator2.png" : "presentator1.png";
+export const getPresenterImageUrl = (state: PresenterState = "idle") => {
+  const filename =
+    state === "speaking"
+      ? "presentator2.png"
+      : state === "correct"
+        ? "presentator3.png"
+        : "presentator1.png";
   return `${SOCKET_BASE_URL}/public/presentator/${filename}`;
 };

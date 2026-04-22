@@ -19,6 +19,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import GlassHeader from "../../components/GlassHeader";
 import { translate, useTranslationVersion } from "../../services/translateService";
 import { getAvatarSource } from "../../utils/avatarOptions";
+import { getCountryFlagSource } from "../../services/countryService";
 import { getItem, saveItem } from "../../utils/storageService";
 
 const SECONDS_PER_QUESTION = 3;
@@ -60,6 +61,11 @@ interface LeaderboardEntry {
   username: string;
   avatar?: string;
   avatarUrl?: string;
+  country?: {
+    key: string;
+    name?: string;
+    flagUrl?: string | null;
+  } | null;
   bestScore: number;
   playCount: number;
   bestTimeSeconds?: number | null;
@@ -406,7 +412,11 @@ export default function PlayQuizScreen() {
         <Text style={styles.rankText}>{item.rank}</Text>
       </View>
 
-      <Image source={getAvatarSource(item.avatar, item.avatarUrl)} style={styles.leaderboardAvatar} />
+      <Image source={getAvatarSource(item.avatar, null)} style={styles.leaderboardAvatar} />
+
+      {item.country?.key ? (
+        <Image source={getCountryFlagSource(null, item.country.key)} style={styles.leaderboardFlag} />
+      ) : null}
 
       <View style={styles.leaderboardTextWrap}>
         <Text style={styles.leaderboardName} numberOfLines={1}>
@@ -883,7 +893,15 @@ const styles = StyleSheet.create({
     width: 42,
     height: 42,
     borderRadius: 21,
-    marginHorizontal: 10,
+    marginLeft: 10,
+    marginRight: 8,
+  },
+  leaderboardFlag: {
+    width: 22,
+    height: 15,
+    borderRadius: 3,
+    marginRight: 8,
+    backgroundColor: theme.white,
   },
   leaderboardTextWrap: {
     flex: 1,

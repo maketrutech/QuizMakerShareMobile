@@ -1,6 +1,6 @@
-import axios from "axios";
 import { ImageSourcePropType } from "react-native";
 import { API_URL } from "../config/api";
+import apiClient from "../config/apiClient";
 import log from "../utils/logService";
 
 const URI = `${API_URL}/countries`;
@@ -36,7 +36,7 @@ export const getCountryFlagSource = (flagUrl?: string | null, countryKey?: strin
 
 export const getCountries = async (): Promise<CountryItem[]> => {
   try {
-    const response = await axios.get<CountryItem[]>(URI);
+    const response = await apiClient.get<CountryItem[]>("/countries");
     return Array.isArray(response.data) ? response.data : [];
   } catch (error) {
     log.error("Error fetching countries:", error);

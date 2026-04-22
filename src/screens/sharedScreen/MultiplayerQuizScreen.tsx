@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Animated,
   Image,
   ScrollView,
   StyleSheet,
@@ -9,16 +10,18 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import AppDialog from "../../components/AppDialog";
 import GlassHeader from "../../components/GlassHeader";
 import useAppAlert from "../../components/useAppAlert";
 import theme from "../../styles/theme";
 import commonStyles from "../../styles/commonStyles";
 import { translate, useTranslationVersion, getCurrentLanguage } from "../../services/translateService";
 import { getItem } from "../../utils/storageService";
-import { getCountryFlagSource } from "../../services/countryService";
+import { getCountryFlagUrl } from "../../services/countryService";
 import { getAvatarSource } from "../../utils/avatarOptions";
 import {
   MultiplayerQuestion,
+  PresenterState,
   MultiplayerRoomState,
   connectMultiplayerSocket,
   buzzMultiplayer,
@@ -47,6 +50,41 @@ const PLAYER_SLOT_LAYOUT = {
   2: ["topLeft", "topRight"],
 } as const;
 
+const THEME_COUNTDOWN_STEPS = ["3", "2", "1", "0", "START"] as const;
+const THEME_COUNTDOWN_STEP_MS = 1000;
+const THEME_COUNTDOWN_END_HOLD_MS = 1000;
+type ThemeCountdownStep = typeof THEME_COUNTDOWN_STEPS[number];
+type QuestionOpenPayload = {
+  presenterState?: PresenterState;
+  question: MultiplayerQuestion;
+  questionIndex: number;
+  totalQuestions: number;
+};
+
+type AnswerResultPayload = {
+  userId?: number | null;
+  answerId?: number | null;
+  result: string;
+  correctAnswerId?: number | null;
+};
+
+type GameFinishedPayload = {
+  players?: MultiplayerRoomState["players"];
+};
+
+type WinnerPlayer = {
+  userId?: number;
+  username?: string;
+  avatar?: string;
+  score?: number;
+  isVirtual?: boolean;
+  countryId?: number | null;
+  country?: {
+    key?: string;
+    flagUrl?: string | null;
+  } | null;
+};
+
 export default function MultiplayerQuizScreen({ navigation }: any) {
   useTranslationVersion();
   const tr = (key: string, fallback: string, params?: Record<string, string | number>) => {
@@ -67,16 +105,176 @@ export default function MultiplayerQuizScreen({ navigation }: any) {
   const [joining, setJoining] = useState(false);
   const [roomState, setRoomState] = useState<MultiplayerRoomState | null>(null);
   const [currentQuestion, setCurrentQuestion] = useState<MultiplayerQuestion | null>(null);
-  const [presenterState, setPresenterState] = useState<"idle" | "speaking">("idle");
+  const [presenterState, setPresenterState] = useState<PresenterState>("idle");
   const [statusText, setStatusText] = useState(tr("multiplayer.initial_prompt", "Tap start matchmaking."));
   const [deadlineAt, setDeadlineAt] = useState<number | null>(null);
   const [timeLeft, setTimeLeft] = useState<number>(0);
   const [currentUserId, setCurrentUserId] = useState<number | null>(null);
   const [currentSocketId, setCurrentSocketId] = useState<string>("");
   const [submittingAnswerId, setSubmittingAnswerId] = useState<number | null>(null);
+  const [selectedAnswerId, setSelectedAnswerId] = useState<number | null>(null);
+  const [revealedCorrectAnswerId, setRevealedCorrectAnswerId] = useState<number | null>(null);
+  const [answerRevealResult, setAnswerRevealResult] = useState<string | null>(null);
   const [presenterImageFailed, setPresenterImageFailed] = useState(false);
+  const [themeCountdownStep, setThemeCountdownStep] = useState<ThemeCountdownStep | null>(null);
+  const [winnerDialogVisible, setWinnerDialogVisible] = useState(false);
+  const [winnerPlayer, setWinnerPlayer] = useState<WinnerPlayer | null>(null);
   const timeoutRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const themeCountdownTimersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const themeCountdownRunningRef = useRef(false);
+  const pendingQuestionOpenRef = useRef<QuestionOpenPayload | null>(null);
+  const roomStateRef = useRef<MultiplayerRoomState | null>(null);
+  const themeCountdownScale = useRef(new Animated.Value(0.5)).current;
+  const themeCountdownOpacity = useRef(new Animated.Value(0)).current;
   const { showAppAlert, appAlertDialog } = useAppAlert(translate("common.ok") === "common.ok" ? "OK" : translate("common.ok"));
+
+  const clearAnswerReveal = () => {
+    setSelectedAnswerId(null);
+    setRevealedCorrectAnswerId(null);
+    setAnswerRevealResult(null);
+  };
+
+  const resolvePlayerFlagSource = (player?: {
+    countryId?: number | string | null;
+    country_id?: number | string | null;
+    country?: { key?: string; flagUrl?: string | null } | null;
+  } | null) => {
+    if (!player) {
+      return null;
+    }
+console.log(player);
+    const flagUrl = getCountryFlagUrl(player.country?.flagUrl || null, player.country?.key || null);
+    return flagUrl ? { uri: flagUrl } : null;
+  };
+
+  useEffect(() => {
+    roomStateRef.current = roomState;
+  }, [roomState]);
+
+  const resolveWinnerFromRoom = (snapshot: MultiplayerRoomState | null): WinnerPlayer | null => {
+    const players = snapshot?.players || [];
+    if (!players.length) {
+      return null;
+    }
+
+    const sorted = [...players].sort((a: any, b: any) => {
+      const scoreDiff = Number(b?.score || 0) - Number(a?.score || 0);
+      if (scoreDiff !== 0) {
+        return scoreDiff;
+      }
+
+      const aName = String(a?.username || "").toLowerCase();
+      const bName = String(b?.username || "").toLowerCase();
+      return aName.localeCompare(bName);
+    });
+
+    return sorted[0] || null;
+  };
+
+  const showWinnerDialog = (players?: MultiplayerRoomState["players"]) => {
+    const winner = players?.length
+      ? resolveWinnerFromRoom({ players } as MultiplayerRoomState)
+      : resolveWinnerFromRoom(roomStateRef.current);
+    setWinnerPlayer(winner);
+    setWinnerDialogVisible(true);
+  };
+
+  const applyQuestionOpenPayload = (payload: QuestionOpenPayload) => {
+    clearAnswerReveal();
+    setPresenterState(payload.presenterState || "idle");
+    setCurrentQuestion(payload.question);
+    setDeadlineAt(null);
+    setSubmittingAnswerId(null);
+    setStatusText(tr("multiplayer.question_count", "Question {index}/{total}", {
+      index: payload.questionIndex,
+      total: payload.totalQuestions,
+    }));
+  };
+
+  const clearThemeCountdownTimers = () => {
+    themeCountdownTimersRef.current.forEach((timerId) => clearTimeout(timerId));
+    themeCountdownTimersRef.current = [];
+  };
+
+  const stopThemeCountdown = () => {
+    clearThemeCountdownTimers();
+    themeCountdownRunningRef.current = false;
+    setThemeCountdownStep(null);
+    themeCountdownScale.stopAnimation();
+    themeCountdownOpacity.stopAnimation();
+    themeCountdownScale.setValue(0.5);
+    themeCountdownOpacity.setValue(0);
+  };
+
+  const animateThemeCountdownStep = (isStartStep: boolean) => {
+    themeCountdownScale.stopAnimation();
+    themeCountdownOpacity.stopAnimation();
+
+    themeCountdownScale.setValue(isStartStep ? 0.62 : 0.5);
+    themeCountdownOpacity.setValue(0);
+
+    Animated.sequence([
+      Animated.parallel([
+        Animated.timing(themeCountdownOpacity, {
+          toValue: 1,
+          duration: 120,
+          useNativeDriver: true,
+        }),
+        Animated.timing(themeCountdownScale, {
+          toValue: 1.08,
+          duration: 160,
+          useNativeDriver: true,
+        }),
+      ]),
+      Animated.parallel([
+        Animated.timing(themeCountdownOpacity, {
+          toValue: isStartStep ? 0.92 : 0.2,
+          duration: isStartStep ? 140 : 110,
+          useNativeDriver: true,
+        }),
+        Animated.timing(themeCountdownScale, {
+          toValue: isStartStep ? 1.04 : 0.84,
+          duration: isStartStep ? 140 : 110,
+          useNativeDriver: true,
+        }),
+      ]),
+    ]).start();
+  };
+
+  const startThemeCountdown = () => {
+    stopThemeCountdown();
+    pendingQuestionOpenRef.current = null;
+    themeCountdownRunningRef.current = true;
+
+    THEME_COUNTDOWN_STEPS.forEach((step, index) => {
+      const timerId = setTimeout(() => {
+        if (!themeCountdownRunningRef.current) {
+          return;
+        }
+
+        setThemeCountdownStep(step);
+        animateThemeCountdownStep(step === "START");
+      }, index * THEME_COUNTDOWN_STEP_MS);
+
+      themeCountdownTimersRef.current.push(timerId);
+    });
+
+    const hideTimerId = setTimeout(() => {
+      if (!themeCountdownRunningRef.current) {
+        return;
+      }
+
+      stopThemeCountdown();
+
+      if (pendingQuestionOpenRef.current) {
+        const deferredPayload = pendingQuestionOpenRef.current;
+        pendingQuestionOpenRef.current = null;
+        applyQuestionOpenPayload(deferredPayload);
+      }
+    }, THEME_COUNTDOWN_STEPS.length * THEME_COUNTDOWN_STEP_MS + THEME_COUNTDOWN_END_HOLD_MS);
+
+    themeCountdownTimersRef.current.push(hideTimerId);
+  };
 
   useEffect(() => {
     const loadInitialData = async () => {
@@ -86,6 +284,7 @@ export default function MultiplayerQuizScreen({ navigation }: any) {
       } catch (error) {
         showAppAlert(translate("common.error"), translate("themeBrowse.empty"));
       }
+
     };
 
     loadInitialData();
@@ -94,6 +293,8 @@ export default function MultiplayerQuizScreen({ navigation }: any) {
       if (timeoutRef.current) {
         clearInterval(timeoutRef.current);
       }
+      stopThemeCountdown();
+      pendingQuestionOpenRef.current = null;
       leaveMultiplayerRoom();
       disconnectMultiplayerSocket();
     };
@@ -125,6 +326,10 @@ export default function MultiplayerQuizScreen({ navigation }: any) {
   }, [deadlineAt]);
 
   const handleBack = () => {
+    stopThemeCountdown();
+    pendingQuestionOpenRef.current = null;
+    clearAnswerReveal();
+    setWinnerDialogVisible(false);
     leaveMultiplayerRoom();
     disconnectMultiplayerSocket();
     navigation.goBack();
@@ -196,17 +401,16 @@ export default function MultiplayerQuizScreen({ navigation }: any) {
       setStatusText(tr("multiplayer.theme_selected", "Theme selected: {theme}. Starting game...", {
         theme: payload?.themeName || tr("multiplayer.theme_generic", "Theme"),
       }));
+      startThemeCountdown();
     });
 
-    socket.on("question_open", (payload: { presenterState?: "idle" | "speaking"; question: MultiplayerQuestion; questionIndex: number; totalQuestions: number }) => {
-      setPresenterState(payload.presenterState || "idle");
-      setCurrentQuestion(payload.question);
-      setDeadlineAt(null);
-      setSubmittingAnswerId(null);
-      setStatusText(tr("multiplayer.question_count", "Question {index}/{total}", {
-        index: payload.questionIndex,
-        total: payload.totalQuestions,
-      }));
+    socket.on("question_open", (payload: QuestionOpenPayload) => {
+      if (themeCountdownRunningRef.current) {
+        pendingQuestionOpenRef.current = payload;
+        return;
+      }
+
+      applyQuestionOpenPayload(payload);
     });
 
     socket.on("locked", (payload: { lockedSocketId: string; answerDeadlineAt?: number; presenterState?: "idle" | "speaking" }) => {
@@ -225,14 +429,27 @@ export default function MultiplayerQuizScreen({ navigation }: any) {
       setPresenterState("idle");
       setDeadlineAt(null);
       setSubmittingAnswerId(null);
+      clearAnswerReveal();
       setRoomState((current) => current ? { ...current, lockedSocketId: null } : current);
       setStatusText(tr("multiplayer.buzzer_reset", "Buzzer reset. Buzz again."));
     });
 
-    socket.on("answer_result", (payload: { userId?: number | null; result: string }) => {
-      setPresenterState("idle");
+    socket.on("answer_result", (payload: AnswerResultPayload) => {
       setDeadlineAt(null);
       setSubmittingAnswerId(null);
+      setRevealedCorrectAnswerId(payload.correctAnswerId ?? null);
+      setAnswerRevealResult(payload.result);
+      setSelectedAnswerId(payload.userId === currentUserId ? payload.answerId ?? null : null);
+
+      if (payload.result === "correct") {
+        setPresenterState("correct");
+      } else if (payload.result === "wrong" || payload.result === "timeout" || payload.result === "disconnect-timeout" || payload.result === "reveal") {
+        setPresenterState("wrong");
+      } else {
+        setPresenterState("idle");
+      }
+
+      setRoomState((current) => current ? { ...current, phase: "answer-reveal", lockedSocketId: null, answerDeadlineAt: null } : current);
 
       if (payload.result === "correct") {
         setStatusText(
@@ -243,11 +460,11 @@ export default function MultiplayerQuizScreen({ navigation }: any) {
       } else if (payload.result === "wrong" || payload.result === "timeout" || payload.result === "disconnect-timeout") {
         setStatusText(
           payload.userId === currentUserId
-            ? tr("multiplayer.you_answered_wrong", "Penalty applied. Wait for the reset.")
-            : tr("multiplayer.player_answered_wrong", "Wrong answer. Buzzer reopening.")
+            ? tr("multiplayer.you_answered_wrong", "Wrong answer. Next question coming up.")
+            : tr("multiplayer.player_answered_wrong", "Wrong answer. Next question coming up.")
         );
       } else if (payload.result === "reveal") {
-        setStatusText(tr("multiplayer.no_players_left", "No players left for this question. Revealing answer."));
+        setStatusText(tr("multiplayer.no_players_left", "Answer revealed. Next question coming up."));
       }
     });
 
@@ -255,14 +472,21 @@ export default function MultiplayerQuizScreen({ navigation }: any) {
       setRoomState((current) => current ? { ...current, players: payload.players } : current);
     });
 
-    socket.on("game_finished", () => {
+    socket.on("game_finished", (payload: GameFinishedPayload) => {
       setPresenterState("idle");
       setDeadlineAt(null);
+      if (payload?.players?.length) {
+        setRoomState((current) => current ? { ...current, players: payload.players || [] } : current);
+      }
       setStatusText(tr("multiplayer.game_finished", "Game finished. See final scores below."));
+      showWinnerDialog(payload?.players);
     });
 
     socket.on("multiplayer:error", (payload: { message?: string }) => {
       const message = payload?.message || tr("multiplayer.error_continue", "Unable to continue multiplayer match.");
+      stopThemeCountdown();
+      pendingQuestionOpenRef.current = null;
+      clearAnswerReveal();
       setJoining(false);
       setStatusText(message);
 
@@ -325,7 +549,7 @@ export default function MultiplayerQuizScreen({ navigation }: any) {
 
   const canViewResponses = Boolean(
     roomState?.roomId &&
-    roomState.phase === "buzz-locked" &&
+    (roomState.phase === "buzz-locked" || roomState.phase === "answer-reveal") &&
     currentQuestion
   );
 
@@ -360,6 +584,8 @@ export default function MultiplayerQuizScreen({ navigation }: any) {
       slot: layout[index],
     }));
   }, [roomState]);
+
+  const isRevealPhase = roomState?.phase === "answer-reveal";
 
   return (
     <SafeAreaView style={styles.container}>
@@ -414,6 +640,7 @@ export default function MultiplayerQuizScreen({ navigation }: any) {
               <View style={styles.playersGrid}>
                 {displayedPlayers.map((player: any) => {
                   const isRealPlayer = Boolean(player.userId);
+                  const flagSource = isRealPlayer ? resolvePlayerFlagSource(player) : null;
 
                   return (
                     <View
@@ -422,9 +649,9 @@ export default function MultiplayerQuizScreen({ navigation }: any) {
                     >
                       {isRealPlayer ? (
                         <>
-                          <Image source={getAvatarSource(player.avatar, player.avatarUrl)} style={styles.playerAvatar} />
-                          {player.country?.key ? (
-                            <Image source={getCountryFlagSource(player.country.flagUrl, player.country.key)} style={styles.playerFlag} />
+                          <Image source={getAvatarSource(player.avatar, null)} style={styles.playerAvatar} />
+                          {flagSource ? (
+                            <Image source={flagSource} style={styles.playerFlag} />
                           ) : null}
                           <View style={styles.playerIdentityRow}>
                             <Text style={styles.playerName} numberOfLines={1}>{player.username}</Text>
@@ -466,6 +693,7 @@ export default function MultiplayerQuizScreen({ navigation }: any) {
         <View style={styles.gameArena}>
           {positionedPlayers.map(({ player, slot }) => {
             const isBuzzed = roomState?.phase === "buzz-locked" && roomState?.lockedSocketId === player.socketId;
+            const flagSource = resolvePlayerFlagSource(player);
             const slotStyle =
               slot === "topLeft"
                 ? styles.topLeft
@@ -482,7 +710,10 @@ export default function MultiplayerQuizScreen({ navigation }: any) {
                 key={String(player.userId || player.socketId)}
                 style={[styles.playerCornerCard, slotStyle, isBuzzed && styles.playerCornerCardBuzzed, commonStyles.softCardShadow]}
               >
-                <Image source={getAvatarSource(player.avatar, player.avatarUrl)} style={styles.cornerAvatar} />
+                <Image source={getAvatarSource(player.avatar, null)} style={styles.cornerAvatar} />
+                {flagSource ? (
+                  <Image source={flagSource} style={styles.cornerFlag} />
+                ) : null}
                 <Text style={styles.cornerName} numberOfLines={1}>{player.username}</Text>
                 <Text style={styles.cornerPts}>{player.score} pts</Text>
               </View>
@@ -502,18 +733,37 @@ export default function MultiplayerQuizScreen({ navigation }: any) {
                   {currentQuestion.answers.map((answer) => (
                     <TouchableOpacity
                       key={answer.id}
-                      style={[styles.answerButton, submittingAnswerId === answer.id && styles.answerButtonActive]}
-                      disabled={submittingAnswerId !== null || !canAnswer}
+                      style={[
+                        styles.answerButton,
+                        submittingAnswerId === answer.id && styles.answerButtonActive,
+                        revealedCorrectAnswerId === answer.id && styles.answerButtonCorrect,
+                        selectedAnswerId === answer.id && answerRevealResult !== "correct" && revealedCorrectAnswerId !== answer.id && styles.answerButtonWrong,
+                      ]}
+                      disabled={submittingAnswerId !== null || isRevealPhase || !canAnswer}
                       onPress={() => {
                         setSubmittingAnswerId(answer.id);
+                        setSelectedAnswerId(answer.id);
                         submitMultiplayerAnswer({ roomId: roomState?.roomId, questionId: currentQuestion.id, answerId: answer.id });
                       }}
                     >
-                      <Text style={styles.answerButtonText}>{answer.answerText}</Text>
+                      <Text
+                        style={[
+                          styles.answerButtonText,
+                          (revealedCorrectAnswerId === answer.id || (selectedAnswerId === answer.id && answerRevealResult !== "correct" && revealedCorrectAnswerId !== answer.id)) && styles.answerButtonTextInverted,
+                        ]}
+                      >
+                        {answer.answerText}
+                      </Text>
                     </TouchableOpacity>
                   ))}
                 </View>
-                {!canAnswer ? (
+                {isRevealPhase ? (
+                  <Text style={styles.readonlyHint}>
+                    {answerRevealResult === "correct"
+                      ? tr("multiplayer.reveal_correct", "Correct answer locked in. Next question loading...")
+                      : tr("multiplayer.reveal_result", "Answer revealed. Next question loading...")}
+                  </Text>
+                ) : !canAnswer ? (
                   <Text style={styles.readonlyHint}>
                     {tr("multiplayer.waiting_for_answer", "Waiting for {player} answer...", {
                       player: lockedPlayer?.username || tr("multiplayer.player_generic", "player"),
@@ -551,6 +801,81 @@ export default function MultiplayerQuizScreen({ navigation }: any) {
           </View>
         </View>
       )}
+
+      {themeCountdownStep ? (
+        <View style={styles.themeCountdownOverlay} pointerEvents="none">
+          <View style={styles.themeCountdownGlowOuter} />
+          <View style={styles.themeCountdownGlowInner} />
+          <Animated.View
+            style={[
+              styles.themeCountdownBadge,
+              themeCountdownStep === "START" && styles.themeCountdownBadgeStart,
+              {
+                opacity: themeCountdownOpacity,
+                transform: [{ scale: themeCountdownScale }],
+              },
+            ]}
+          >
+            <Text
+              style={[
+                styles.themeCountdownText,
+                themeCountdownStep === "START" && styles.themeCountdownStartText,
+              ]}
+            >
+              {themeCountdownStep}
+            </Text>
+          </Animated.View>
+        </View>
+      ) : null}
+
+      <AppDialog
+        visible={winnerDialogVisible}
+        title={tr("multiplayer.winner_dialog_title", "Winner")}
+        subtitle={tr("multiplayer.winner_dialog_subtitle", "Match complete")}
+        onClose={handleBack}
+      >
+        {(() => {
+          const winnerFlagSource = resolvePlayerFlagSource(winnerPlayer);
+
+          return (
+        <View style={styles.winnerDialogWrap}>
+          <View style={styles.winnerPresenterBadge}>
+            <Image
+              source={{ uri: getPresenterImageUrl("idle") }}
+              style={styles.winnerPresenterImage}
+              resizeMode="contain"
+            />
+          </View>
+
+          <View style={styles.winnerCard}>
+            <Image
+              source={getAvatarSource(winnerPlayer?.avatar, null)}
+              style={styles.winnerAvatar}
+            />
+
+            {winnerFlagSource ? (
+              <Image
+                source={winnerFlagSource}
+                style={styles.winnerFlag}
+              />
+            ) : null}
+
+            <Text style={styles.winnerName} numberOfLines={1}>
+              {winnerPlayer?.username || tr("multiplayer.player_generic", "player")}
+            </Text>
+
+            <Text style={styles.winnerPts}>
+              {Number(winnerPlayer?.score || 0)} pts
+            </Text>
+          </View>
+
+          <TouchableOpacity style={styles.winnerBackButton} onPress={handleBack}>
+            <Text style={styles.winnerBackButtonText}>{tr("common.back", "Back")}</Text>
+          </TouchableOpacity>
+        </View>
+          );
+        })()}
+      </AppDialog>
 
       {appAlertDialog}
     </SafeAreaView>
@@ -683,14 +1008,14 @@ const styles = StyleSheet.create({
   },
   playerCornerCard: {
     position: "absolute",
-    width: 136,
-    borderRadius: 16,
+    width: 122,
+    borderRadius: 14,
     borderWidth: 1,
     borderColor: theme.border,
     backgroundColor: theme.surface,
     alignItems: "center",
-    paddingVertical: 8,
-    paddingHorizontal: 8,
+    paddingVertical: 6,
+    paddingHorizontal: 6,
     zIndex: 5,
   },
   playerCornerCardBuzzed: {
@@ -719,21 +1044,28 @@ const styles = StyleSheet.create({
     marginLeft: -68,
   },
   cornerAvatar: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    marginBottom: 5,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    marginBottom: 3,
+  },
+  cornerFlag: {
+    width: 20,
+    height: 14,
+    borderRadius: 3,
+    marginBottom: 3,
+    backgroundColor: theme.white,
   },
   cornerName: {
     color: theme.black,
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: "800",
   },
   cornerPts: {
     color: theme.primary,
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: "800",
-    marginTop: 2,
+    marginTop: 1,
   },
   presenterWrap: {
     alignItems: "center",
@@ -972,10 +1304,142 @@ const styles = StyleSheet.create({
     borderColor: theme.primary,
     backgroundColor: "#efeaff",
   },
+  answerButtonCorrect: {
+    borderColor: theme.success,
+    backgroundColor: theme.success,
+  },
+  answerButtonWrong: {
+    borderColor: theme.danger,
+    backgroundColor: theme.danger,
+  },
   answerButtonText: {
     color: theme.black,
     fontSize: 15,
     fontWeight: "700",
     textAlign: "center",
+  },
+  answerButtonTextInverted: {
+    color: theme.white,
+  },
+  themeCountdownOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(9,13,30,0.46)",
+    zIndex: 120,
+    elevation: 40,
+  },
+  themeCountdownGlowOuter: {
+    position: "absolute",
+    width: 320,
+    height: 320,
+    borderRadius: 160,
+    backgroundColor: "rgba(255,70,70,0.18)",
+  },
+  themeCountdownGlowInner: {
+    position: "absolute",
+    width: 220,
+    height: 220,
+    borderRadius: 110,
+    backgroundColor: "rgba(255,255,255,0.12)",
+  },
+  themeCountdownBadge: {
+    minWidth: 180,
+    minHeight: 180,
+    borderRadius: 999,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 2,
+    borderColor: "rgba(255,255,255,0.65)",
+    backgroundColor: "rgba(18,24,56,0.75)",
+    paddingHorizontal: 18,
+  },
+  themeCountdownBadgeStart: {
+    minWidth: 260,
+    minHeight: 180,
+    backgroundColor: "rgba(200,10,10,0.9)",
+    borderColor: "rgba(255,236,236,0.95)",
+  },
+  themeCountdownText: {
+    color: theme.white,
+    fontSize: 96,
+    fontWeight: "900",
+    lineHeight: 102,
+    textAlign: "center",
+  },
+  themeCountdownStartText: {
+    color: "#ff1d1d",
+    fontSize: 66,
+    letterSpacing: 2,
+    lineHeight: 74,
+    textShadowColor: "rgba(255,255,255,0.35)",
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 8,
+  },
+  winnerDialogWrap: {
+    alignItems: "center",
+    gap: 12,
+    paddingBottom: 4,
+  },
+  winnerPresenterBadge: {
+    width: "100%",
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "#dbe8ff",
+    backgroundColor: "#f8fbff",
+    alignItems: "center",
+    paddingVertical: 8,
+  },
+  winnerPresenterImage: {
+    width: 170,
+    height: 96,
+  },
+  winnerCard: {
+    width: "100%",
+    alignItems: "center",
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: theme.border,
+    backgroundColor: theme.surfaceSoft,
+    paddingVertical: 16,
+    paddingHorizontal: 12,
+  },
+  winnerAvatar: {
+    width: 84,
+    height: 84,
+    borderRadius: 42,
+    marginBottom: 8,
+  },
+  winnerFlag: {
+    width: 30,
+    height: 20,
+    borderRadius: 4,
+    marginBottom: 8,
+    backgroundColor: theme.white,
+  },
+  winnerName: {
+    color: theme.black,
+    fontSize: 20,
+    fontWeight: "900",
+    textAlign: "center",
+  },
+  winnerPts: {
+    color: theme.primary,
+    fontSize: 18,
+    fontWeight: "900",
+    marginTop: 4,
+  },
+  winnerBackButton: {
+    width: "100%",
+    minHeight: 48,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: theme.primary,
+  },
+  winnerBackButtonText: {
+    color: theme.white,
+    fontSize: 15,
+    fontWeight: "800",
   },
 });
